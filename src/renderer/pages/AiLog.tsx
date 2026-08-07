@@ -1,5 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
+import { Navigate } from 'react-router-dom';
 import { AiLogEntry, AiPromptSegment } from '../../shared/types/ai';
+import { useAiSettings } from '../context/AiSettingsContext';
 
 const POLL_INTERVAL_MS = 4000;
 
@@ -203,6 +205,7 @@ function LogEntryCard({ entry }: { entry: AiLogEntry }) {
 }
 
 export default function AiLog() {
+  const { aiEnabled } = useAiSettings();
   const [entries, setEntries] = useState<AiLogEntry[]>([]);
   const [loaded, setLoaded] = useState(false);
   const pollTimer = useRef<ReturnType<typeof setInterval> | null>(null);
@@ -225,6 +228,12 @@ export default function AiLog() {
     if (!confirm('Clear the AI call log?')) return;
     await window.electronAPI.ai.clearLog();
     await load();
+  }
+
+  // Reachable only via the nav link, which is already hidden when AI is off -- this
+  // covers the edge case of landing here anyway (e.g. browser back/forward).
+  if (!aiEnabled) {
+    return <Navigate to="/" replace />;
   }
 
   return (

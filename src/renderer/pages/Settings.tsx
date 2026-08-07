@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
 import { useTheme } from '../context/ThemeContext';
+import { useAiSettings } from '../context/AiSettingsContext';
 import { THEME_LABELS } from '../utils/themes';
 import { AiProvider, AiSettingsWithKeyFlag } from '../../shared/types/ai';
 
@@ -7,6 +8,7 @@ const CLAUDE_MODELS = ['claude-opus-5', 'claude-sonnet-5', 'claude-haiku-4-5'];
 
 export default function Settings() {
   const { currentTheme, setTheme, availableThemes } = useTheme();
+  const { refresh: refreshAiSettingsContext } = useAiSettings();
 
   const [dbLocation, setDbLocation] = useState<{ path: string; isDefault: boolean; defaultPath: string } | null>(
     null
@@ -45,6 +47,7 @@ export default function Settings() {
     setAiTestResult(null);
     await window.electronAPI.ai.setSettings({ aiEnabled });
     await refreshAiSettings();
+    await refreshAiSettingsContext();
     setAiBusy(false);
   }
 
@@ -325,8 +328,6 @@ export default function Settings() {
                 </div>
               </>
             )}
-              </>
-            )}
 
             <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginTop: 4 }}>
               <button className="btn" disabled={aiTesting} onClick={handleTestAiConnection}>
@@ -343,6 +344,8 @@ export default function Settings() {
                 </span>
               )}
             </div>
+              </>
+            )}
           </>
         )}
       </div>

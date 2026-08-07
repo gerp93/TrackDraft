@@ -16,7 +16,10 @@ export default function Layout({ children }: { children: ReactNode }) {
   return (
     <div className="app-root">
       <nav className="topbar">
-        <div className="topbar-title">TrackDraft</div>
+        <div className="topbar-title">
+          <img src="/logo.png" alt="" className="topbar-logo" />
+          TrackDraft
+        </div>
         <ul>
           {visibleNavItems.map((item) => (
             <li key={item.to}>

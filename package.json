@@ -11,7 +11,8 @@
     "build": "npm run build:renderer && npm run build:electron",
     "build:renderer": "vite build",
     "build:electron": "tsc -p tsconfig.main.json",
-    "package": "electron-builder"
+    "package": "electron-builder",
+    "generate-icons": "node scripts/generate-icons.js"
   },
   "keywords": [
     "electron",
@@ -30,6 +31,7 @@
     "concurrently": "^8.2.2",
     "electron": "^28.0.0",
     "electron-builder": "^24.9.1",
+    "sharp": "^0.35.3",
     "typescript": "^5.3.3",
     "vite": "^5.0.8",
     "wait-on": "^7.2.0"
@@ -47,6 +49,7 @@
   "build": {
     "appId": "com.trackdraft.app",
     "productName": "TrackDraft",
+    "icon": "build/icon.png",
     "files": [
       "dist/**/*",
       "assets/**/*"

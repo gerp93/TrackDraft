@@ -33,7 +33,8 @@ export default function SongList() {
 
   return (
     <div>
-      <div className="page-header">
+      <div className="page-header page-header-hero">
+        <img src={`${import.meta.env.BASE_URL}logo.png`} alt="TrackDraft" className="hero-logo" />
         <h1>Songs</h1>
       </div>
 

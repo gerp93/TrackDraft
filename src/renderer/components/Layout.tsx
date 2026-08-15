@@ -17,7 +17,7 @@ export default function Layout({ children }: { children: ReactNode }) {
     <div className="app-root">
       <nav className="topbar">
         <div className="topbar-title">
-          <img src="/logo.png" alt="" className="topbar-logo" />
+          <img src={`${import.meta.env.BASE_URL}logo.png`} alt="" className="topbar-logo" />
           TrackDraft
         </div>
         <ul>

@@ -11,6 +11,8 @@ function rowToSong(columns: string[], row: any[]): Song {
   return {
     id: obj.id,
     title: obj.title,
+    styleNotes: obj.styleNotes ?? '',
+    notes: obj.notes ?? '',
     createdAt: obj.createdAt,
     updatedAt: obj.updatedAt,
   };
@@ -19,6 +21,8 @@ function rowToSong(columns: string[], row: any[]): Song {
 const SELECT_COLUMNS = `
   id,
   title,
+  style_notes as styleNotes,
+  notes,
   created_at as createdAt,
   updated_at as updatedAt
 `;
@@ -69,6 +73,16 @@ export class SongService {
     if (input.title !== undefined) {
       updates.push('title = ?');
       params.push(input.title);
+    }
+
+    if (input.styleNotes !== undefined) {
+      updates.push('style_notes = ?');
+      params.push(input.styleNotes);
+    }
+
+    if (input.notes !== undefined) {
+      updates.push('notes = ?');
+      params.push(input.notes);
     }
 
     updates.push('updated_at = ?');

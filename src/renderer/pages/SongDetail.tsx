@@ -17,6 +17,9 @@ export default function SongDetail() {
   const [titleDraft, setTitleDraft] = useState('');
   const [justAddedPlacementId, setJustAddedPlacementId] = useState<string | null>(null);
   const [deletingPlacementId, setDeletingPlacementId] = useState<string | null>(null);
+  const [activeTab, setActiveTab] = useState<'parts' | 'notes'>('parts');
+  const [styleNotesDraft, setStyleNotesDraft] = useState('');
+  const [notesDraft, setNotesDraft] = useState('');
   const partRefs = useRef<Record<string, HTMLDivElement | null>>({});
 
   useEffect(() => {
@@ -38,6 +41,8 @@ export default function SongDetail() {
     ]);
     setSong(s);
     setTitleDraft(s?.title ?? '');
+    setStyleNotesDraft(s?.styleNotes ?? '');
+    setNotesDraft(s?.notes ?? '');
     setParts(partList);
     setPlacements(placementList);
   }
@@ -47,6 +52,22 @@ export default function SongDetail() {
     const trimmed = titleDraft.trim();
     if (trimmed && trimmed !== song.title) {
       await window.electronAPI.songs.update(songId, { title: trimmed });
+      await load(songId);
+    }
+  }
+
+  async function handleStyleNotesBlur() {
+    if (!songId || !song) return;
+    if (styleNotesDraft !== song.styleNotes) {
+      await window.electronAPI.songs.update(songId, { styleNotes: styleNotesDraft });
+      await load(songId);
+    }
+  }
+
+  async function handleNotesBlur() {
+    if (!songId || !song) return;
+    if (notesDraft !== song.notes) {
+      await window.electronAPI.songs.update(songId, { notes: notesDraft });
       await load(songId);
     }
   }
@@ -126,7 +147,47 @@ export default function SongDetail() {
         />
       </div>
 
-      <div style={{ display: 'flex', gap: 24, alignItems: 'flex-start' }}>
+      <div className="song-tabs">
+        <button
+          className={`song-tab-btn${activeTab === 'parts' ? ' active' : ''}`}
+          onClick={() => setActiveTab('parts')}
+        >
+          Parts
+        </button>
+        <button
+          className={`song-tab-btn${activeTab === 'notes' ? ' active' : ''}`}
+          onClick={() => setActiveTab('notes')}
+        >
+          Notes
+        </button>
+      </div>
+
+      {activeTab === 'notes' && (
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 16, maxWidth: 720 }}>
+          <div className="field">
+            <label>Style Notes</label>
+            <textarea
+              className="notes-textarea"
+              value={styleNotesDraft}
+              onChange={(e) => setStyleNotesDraft(e.target.value)}
+              onBlur={handleStyleNotesBlur}
+              placeholder="Tempo, instrumentation, references, vibe..."
+            />
+          </div>
+          <div className="field">
+            <label>Notes</label>
+            <textarea
+              className="notes-textarea"
+              value={notesDraft}
+              onChange={(e) => setNotesDraft(e.target.value)}
+              onBlur={handleNotesBlur}
+              placeholder="Anything else worth jotting down..."
+            />
+          </div>
+        </div>
+      )}
+
+      <div style={{ display: activeTab === 'parts' ? 'flex' : 'none', gap: 24, alignItems: 'flex-start' }}>
         <div style={{ flex: '6 1 0', minWidth: 0 }}>
           {placements.length === 0 && (
             <div className="text-muted" style={{ marginBottom: 8 }}>

@@ -60,6 +60,18 @@ export async function initDatabase(dbPath?: string): Promise<Database> {
     // already exists
   }
 
+  // Migration: songs created before the style notes / notes fields existed.
+  try {
+    db.run(`ALTER TABLE songs ADD COLUMN style_notes TEXT NOT NULL DEFAULT ''`);
+  } catch (e) {
+    // already exists
+  }
+  try {
+    db.run(`ALTER TABLE songs ADD COLUMN notes TEXT NOT NULL DEFAULT ''`);
+  } catch (e) {
+    // already exists
+  }
+
   db.run(`
     CREATE TABLE IF NOT EXISTS part_placements (
       id TEXT PRIMARY KEY,

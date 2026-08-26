@@ -1,4 +1,4 @@
-export type PartType = 'verse' | 'chorus' | 'intro' | 'outro' | 'bridge' | 'custom';
+export type PartType = 'verse' | 'pre-chorus' | 'chorus' | 'intro' | 'outro' | 'bridge' | 'custom';
 
 /** A content record -- the actual written section. A song's visible arrangement is a
  * separate ordered list of PartPlacements, each pointing at one of these; the same Part

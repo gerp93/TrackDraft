@@ -1,6 +1,6 @@
 import { Part, PartType } from '../types/part';
 
-export const PRESET_PART_TYPES: Exclude<PartType, 'custom'>[] = ['chorus', 'verse', 'intro', 'outro', 'bridge'];
+export const PRESET_PART_TYPES: Exclude<PartType, 'custom'>[] = ['chorus', 'verse', 'pre-chorus', 'intro', 'outro', 'bridge'];
 
 /** Only these types can be "repeated" (placed again, same content record) -- a song
  * typically has one distinct verse/bridge/intro/outro per occurrence, but the same
@@ -10,6 +10,7 @@ export const REPEATABLE_PART_TYPES: Exclude<PartType, 'custom'>[] = ['chorus'];
 export const PART_TYPE_LABELS: Record<Exclude<PartType, 'custom'>, string> = {
   chorus: 'Chorus',
   verse: 'Verse',
+  'pre-chorus': 'Pre-Chorus',
   intro: 'Intro',
   outro: 'Outro',
   bridge: 'Bridge',

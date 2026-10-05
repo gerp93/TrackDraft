@@ -32,6 +32,7 @@ import {
 import { listOllamaModels } from './ai/ollamaProvider';
 import { assist, reorderForRhymeScheme, suggestRhymeScheme, testConnection } from './ai/aiService';
 import { clearAiLog, getAiLog } from './ai/aiLog';
+import { setupApplicationMenu, attachContextMenu } from './menu';
 
 pinUserDataPath();
 app.setName('trackdraft');
@@ -99,6 +100,8 @@ function createWindow() {
   mainWindow.on('closed', () => {
     mainWindow = null;
   });
+
+  attachContextMenu(mainWindow);
 }
 
 function setupAutoUpdater() {
@@ -211,6 +214,7 @@ app.whenReady().then(async () => {
 
   registerIPCHandlers();
 
+  setupApplicationMenu();
   createWindow();
   appInitialized = true;
   setupAutoUpdater();

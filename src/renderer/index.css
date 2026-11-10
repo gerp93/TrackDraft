@@ -204,6 +204,19 @@ textarea {
   text-align: center;
 }
 
+.line-number-gutter {
+  display: flex;
+  flex-direction: column;
+  font-family: 'Courier New', monospace;
+  font-size: 14px;
+  line-height: 1.6;
+  color: var(--color-text-muted);
+  padding-top: 9px;
+  padding-right: 8px;
+  min-width: 24px;
+  text-align: right;
+}
+
 
 .version-diff-panel {
   margin-top: 10px;

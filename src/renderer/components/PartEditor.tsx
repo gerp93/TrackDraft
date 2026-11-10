@@ -329,6 +329,11 @@ export default function PartEditor({ part, songId, canMoveUp, canMoveDown, onMov
           )}
 
           <div style={{ display: 'flex' }}>
+            <div className="line-number-gutter">
+              {draftLines.map((_, i) => (
+                <div key={i}>{i + 1}</div>
+              ))}
+            </div>
             <div className="rhyme-gutter">
               {rhymeMap.map((letter, i) => (
                 <div key={i}>{letter ?? ' '}</div>

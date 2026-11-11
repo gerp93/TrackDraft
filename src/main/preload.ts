@@ -6,6 +6,7 @@ import { CreatePartVersionInput } from '../shared/types/partVersion';
 import { AiSettings } from '../shared/types/ai';
 import { GenerateSongOptions } from '../shared/types/songTake';
 import { ImportSongInput } from '../shared/utils/songImport';
+import { CreateSoundPresetInput } from '../shared/types/soundPreset';
 
 contextBridge.exposeInMainWorld('electronAPI', {
   songs: {
@@ -81,6 +82,12 @@ contextBridge.exposeInMainWorld('electronAPI', {
       ipcRenderer.invoke('ai:assist', songId, partId, instruction, rhymeScheme),
     getLog: () => ipcRenderer.invoke('ai:getLog'),
     clearLog: () => ipcRenderer.invoke('ai:clearLog'),
+  },
+
+  presets: {
+    getAll: () => ipcRenderer.invoke('presets:getAll'),
+    create: (input: CreateSoundPresetInput) => ipcRenderer.invoke('presets:create', input),
+    delete: (id: string) => ipcRenderer.invoke('presets:delete', id),
   },
 
   music: {

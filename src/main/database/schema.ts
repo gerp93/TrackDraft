@@ -139,6 +139,17 @@ export async function initDatabase(dbPath?: string): Promise<Database> {
   `);
   db.run(`CREATE INDEX IF NOT EXISTS idx_song_takes_song ON song_takes(song_id)`);
 
+  // Named "Sound" descriptions (style notes + voice) that can be reapplied to any song.
+  db.run(`
+    CREATE TABLE IF NOT EXISTS sound_presets (
+      id TEXT PRIMARY KEY,
+      name TEXT NOT NULL,
+      style_notes TEXT NOT NULL,
+      vocal_gender TEXT NOT NULL DEFAULT '',
+      created_at TEXT NOT NULL
+    )
+  `);
+
   // Migration: takes created before the model's seed was recorded.
   try {
     db.run(`ALTER TABLE song_takes ADD COLUMN seed TEXT`);

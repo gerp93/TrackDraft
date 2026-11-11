@@ -5,6 +5,7 @@ import { PartVersion, CreatePartVersionInput } from '../shared/types/partVersion
 import { AiLogEntry, AiSettings, AiSettingsWithKeyFlag, AiTestConnectionResult } from '../shared/types/ai';
 import { AceStepServerStatus, GenerateSongOptions, SongGenerationStatus, SongTake } from '../shared/types/songTake';
 import { ImportedSection, ImportSongInput } from '../shared/utils/songImport';
+import { CreateSoundPresetInput, SoundPreset } from '../shared/types/soundPreset';
 
 declare global {
   interface Window {
@@ -79,6 +80,11 @@ declare global {
         ) => Promise<{ lines: string[] }>;
         getLog: () => Promise<AiLogEntry[]>;
         clearLog: () => Promise<{ success: boolean }>;
+      };
+      presets: {
+        getAll: () => Promise<SoundPreset[]>;
+        create: (input: CreateSoundPresetInput) => Promise<SoundPreset>;
+        delete: (id: string) => Promise<{ success: boolean }>;
       };
       music: {
         testConnection: () => Promise<AiTestConnectionResult>;

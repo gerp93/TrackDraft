@@ -662,3 +662,34 @@ textarea {
   line-height: 1.6;
   margin: 8px 0 0;
 }
+
+/* ---- Sound presets ---- */
+.sound-preset-picker {
+  margin-bottom: 10px;
+}
+
+.sound-preset-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.sound-preset-row select {
+  flex: 1;
+  min-width: 0;
+}
+
+.sound-preset-list {
+  list-style: none;
+  margin: 8px 0 0;
+  padding: 0;
+  border-top: 1px solid var(--color-border);
+}
+
+.sound-preset-list li {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 4px 0;
+}

@@ -1,5 +1,6 @@
 import { VocalGender } from '../../shared/types/song';
 import type { SongAudioState } from './SongAudio';
+import SoundPresetPicker from './SoundPresetPicker';
 
 const VOICE_OPTIONS: { value: VocalGender; label: string }[] = [
   { value: '', label: 'Auto' },
@@ -34,6 +35,17 @@ export default function SoundSettings({
 
   return (
     <>
+      <SoundPresetPicker
+        styleNotes={styleNotes}
+        vocalGender={vocalGender}
+        onApplyStyleNotes={async (value) => {
+          // The parent's draft updates on the next render, so commit after that tick.
+          onStyleNotesChange(value);
+          setTimeout(() => onStyleNotesCommit(), 0);
+        }}
+        onVocalGenderChange={onVocalGenderChange}
+      />
+
       <div className="field">
         <label htmlFor="song-sound">Sound</label>
         <textarea

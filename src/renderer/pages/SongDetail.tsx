@@ -149,6 +149,11 @@ export default function SongDetail() {
     if (songId) await load(songId);
   }
 
+  async function handleChangeDirection(partId: string, direction: string) {
+    await window.electronAPI.parts.update(partId, { direction });
+    if (songId) await load(songId);
+  }
+
   async function handleDeletePlacement(placementId: string) {
     if (!songId) return;
     if (!confirm('Remove this part from the song? If it appears nowhere else, its content is deleted too.')) return;
@@ -261,6 +266,9 @@ export default function SongDetail() {
                     onRename={(newLabel) => handleRenamePart(part.id, newLabel)}
                     onDelete={() => handleDeletePlacement(placement.id)}
                     onToggleNoLyrics={() => handleToggleNoLyrics(part.id, part.noLyrics)}
+                    direction={part.direction}
+                    placementCount={placements.filter((p) => p.partId === part.id).length}
+                    onChangeDirection={(d) => handleChangeDirection(part.id, d)}
                   >
                     <PartEditor
                       part={part}

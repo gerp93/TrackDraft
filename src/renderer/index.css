@@ -692,4 +692,26 @@ textarea {
   justify-content: space-between;
   gap: 8px;
   padding: 4px 0;
+
+/* ---- Section direction ---- */
+.section-direction {
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 8px;
+}
+.section-direction input {
+  flex: 1;
+  font-size: 13px;
+}
+.section-direction-label,
+.section-direction-note {
+  font-size: 12px;
+  color: var(--color-text-muted);
+  white-space: nowrap;
+}
+.section-direction-add {
+  font-size: 12px;
+  color: var(--color-text-muted);
+  background: none;
+  border: 1px dashed var(--color-border);
 }

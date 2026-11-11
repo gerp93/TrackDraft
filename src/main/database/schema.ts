@@ -60,6 +60,13 @@ export async function initDatabase(dbPath?: string): Promise<Database> {
     // already exists
   }
 
+  // Migration: parts created before per-section audio direction existed.
+  try {
+    db.run(`ALTER TABLE parts ADD COLUMN direction TEXT NOT NULL DEFAULT ''`);
+  } catch (e) {
+    // already exists
+  }
+
   // Migration: songs created before the style notes / notes fields existed.
   try {
     db.run(`ALTER TABLE songs ADD COLUMN style_notes TEXT NOT NULL DEFAULT ''`);

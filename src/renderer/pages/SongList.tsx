@@ -61,6 +61,9 @@ export default function SongList() {
           <button className="btn btn-primary" onClick={handleCreate}>
             Create Song
           </button>
+          <Link to="/import" className="btn" style={{ textDecoration: 'none', display: 'inline-flex', alignItems: 'center' }}>
+            Import Lyrics…
+          </Link>
         </div>
       </div>
 

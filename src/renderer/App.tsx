@@ -1,6 +1,7 @@
 import { HashRouter as Router, Routes, Route } from 'react-router-dom';
 import SongList from './pages/SongList';
 import SongDetail from './pages/SongDetail';
+import ImportSong from './pages/ImportSong';
 import Settings from './pages/Settings';
 import AiLog from './pages/AiLog';
 import Layout from './components/Layout';
@@ -18,6 +19,7 @@ function App() {
             <Layout>
               <Routes>
                 <Route path="/" element={<SongList />} />
+                <Route path="/import" element={<ImportSong />} />
                 <Route path="/songs/:songId" element={<SongDetail />} />
                 <Route path="/settings" element={<Settings />} />
                 <Route path="/ai-log" element={<AiLog />} />

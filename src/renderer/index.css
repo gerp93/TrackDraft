@@ -621,3 +621,44 @@ textarea {
   line-height: 1.6;
   margin: 0;
 }
+
+/* Import Song page */
+.import-textarea {
+  resize: vertical;
+  overflow-y: auto;
+  white-space: pre-wrap;
+  min-height: 240px;
+}
+
+.import-error {
+  margin-top: 10px;
+  color: var(--color-accent-red);
+}
+
+.import-preview-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.import-section {
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius);
+  padding: 10px 12px;
+}
+
+.import-section-header {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+.import-section-lines {
+  white-space: pre-wrap;
+  font-family: 'Courier New', monospace;
+  font-size: 13px;
+  line-height: 1.6;
+  margin: 8px 0 0;
+}

@@ -1,4 +1,4 @@
-import { app, BrowserWindow, ipcMain, dialog } from 'electron';
+import { app, BrowserWindow, ipcMain, dialog, shell } from 'electron';
 import { autoUpdater } from 'electron-updater';
 import * as path from 'path';
 import * as fs from 'fs';
@@ -312,11 +312,32 @@ function registerIPCHandlers() {
   });
 
   // Database location handlers
-  ipcMain.handle('dbLocation:get', () => ({
-    path: getEffectiveDbPath(),
-    isDefault: isUsingDefaultLocation(),
-    defaultPath: getDefaultDbPath(),
-  }));
+  ipcMain.handle('dbLocation:get', () => {
+    const dbPath = getEffectiveDbPath();
+    let sizeBytes: number | null = null;
+    try {
+      sizeBytes = fs.statSync(dbPath).size;
+    } catch {
+      // Not created yet -- leave null so the UI skips the size instead of showing a bogus one.
+    }
+    return {
+      path: dbPath,
+      isDefault: isUsingDefaultLocation(),
+      defaultPath: getDefaultDbPath(),
+      sizeBytes,
+    };
+  });
+
+  ipcMain.handle('dbLocation:showInFolder', async () => {
+    const dbPath = getEffectiveDbPath();
+    if (fs.existsSync(dbPath)) {
+      shell.showItemInFolder(dbPath);
+    } else {
+      const err = await shell.openPath(path.dirname(dbPath));
+      if (err) throw new Error(err);
+    }
+    return { success: true };
+  });
 
   ipcMain.handle('dbLocation:browseExisting', async () => {
     if (!mainWindow) return null;

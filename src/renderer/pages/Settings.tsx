@@ -6,11 +6,21 @@ import { AiProvider, AiSettingsWithKeyFlag } from '../../shared/types/ai';
 
 const CLAUDE_MODELS = ['claude-opus-5', 'claude-sonnet-5', 'claude-haiku-4-5'];
 
+/** KB/MB/GB, whichever fits (KVG_Standards db-location-versioning.md). */
+function formatDbFileSize(bytes: number): string {
+  const KB = 1024;
+  const MB = KB * 1024;
+  const GB = MB * 1024;
+  if (bytes >= GB) return `${(bytes / GB).toFixed(1)} GB`;
+  if (bytes >= MB) return `${(bytes / MB).toFixed(1)} MB`;
+  return `${Math.round(bytes / KB)} KB`;
+}
+
 export default function Settings() {
   const { currentTheme, setTheme, availableThemes } = useTheme();
   const { refresh: refreshAiSettingsContext } = useAiSettings();
 
-  const [dbLocation, setDbLocation] = useState<{ path: string; isDefault: boolean; defaultPath: string } | null>(
+  const [dbLocation, setDbLocation] = useState<{ path: string; isDefault: boolean; defaultPath: string; sizeBytes: number | null } | null>(
     null
   );
   const [dbBusy, setDbBusy] = useState(false);
@@ -407,7 +417,10 @@ export default function Settings() {
         {dbLocation && (
           <>
             <div className="field">
-              <label>Current File{dbLocation.isDefault ? ' (default)' : ''}</label>
+              <label>
+                Current File{dbLocation.isDefault ? ' (default)' : ''}
+                {dbLocation.sizeBytes != null && ` — ${formatDbFileSize(dbLocation.sizeBytes)}`}
+              </label>
               <input value={dbLocation.path} readOnly style={{ fontFamily: 'monospace', fontSize: 12 }} />
             </div>
             <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
@@ -416,6 +429,9 @@ export default function Settings() {
               </button>
               <button className="btn" disabled={dbBusy} onClick={handleCreateNewLocation}>
                 Create New File Here…
+              </button>
+              <button className="btn" disabled={dbBusy} onClick={() => window.electronAPI.dbLocation.showInFolder()}>
+                Show in Explorer
               </button>
               {!dbLocation.isDefault && (
                 <button className="btn" disabled={dbBusy} onClick={handleResetToDefault}>

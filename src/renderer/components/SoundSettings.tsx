@@ -39,9 +39,10 @@ export default function SoundSettings({
         styleNotes={styleNotes}
         vocalGender={vocalGender}
         onApplyStyleNotes={async (value) => {
-          // The parent's draft updates on the next render, so commit after that tick.
-          onStyleNotesChange(value);
-          setTimeout(() => onStyleNotesCommit(), 0);
+          // Save straight to the song rather than through the parent's draft: the voice
+          // change that follows reloads the song, which would overwrite an unsaved draft
+          // with the old text. That same reload then shows the new text.
+          await window.electronAPI.songs.update(songId, { styleNotes: value });
         }}
         onVocalGenderChange={onVocalGenderChange}
       />

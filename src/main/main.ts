@@ -19,6 +19,7 @@ import { PartVersionService } from './database/partVersionService';
 import { SongTakeService } from './database/songTakeService';
 import { SoundPresetService } from './database/soundPresetService';
 import { CreateSoundPresetInput } from '../shared/types/soundPreset';
+import { registerTakesIpc } from './ai/takesIpc';
 import { CreateSongInput, UpdateSongInput } from '../shared/types/song';
 import { CreatePartInput, UpdatePartInput } from '../shared/types/part';
 import { CreatePlacementInput } from '../shared/types/partPlacement';
@@ -476,6 +477,8 @@ function registerIPCHandlers() {
     soundPresetService.delete(id);
     return { success: true };
   });
+  // takes:* (star / rename / notes / export / bulk) -- see ai/takesIpc.ts
+  registerTakesIpc({ songService, songTakeService, getWindow: () => mainWindow });
 
   ipcMain.handle('ai:getLog', () => getAiLog());
   ipcMain.handle('ai:clearLog', () => {

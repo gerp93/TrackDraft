@@ -9,6 +9,7 @@ import PartEditor from '../components/PartEditor';
 import InsertPartBar from '../components/InsertPartBar';
 import LiveSongPanel from '../components/LiveSongPanel';
 import { AudioBar, AudioPanel, useSongAudio } from '../components/SongAudio';
+import { useCurrentLyrics } from '../utils/useCurrentLyrics';
 
 export default function SongDetail() {
   const { songId } = useParams<{ songId: string }>();
@@ -27,6 +28,7 @@ export default function SongDetail() {
   const audioBarRef = useRef<HTMLDivElement | null>(null);
   const soundInputRef = useRef<HTMLTextAreaElement>(null);
   const audio = useSongAudio(songId ?? '', styleNotesDraft, handleStyleNotesBlur);
+  const currentLyrics = useCurrentLyrics(songId ?? '', placements, parts);
 
   // The slide-out audio panel is position:fixed, so it has to be told where the page
   // area starts (below the top bar) and where the docked player bar begins -- both
@@ -309,6 +311,7 @@ export default function SongDetail() {
             vocalGender={song.vocalGender}
             onVocalGenderChange={handleVocalGenderChange}
             soundInputRef={soundInputRef}
+            currentLyrics={currentLyrics}
           />
         )}
       </div>

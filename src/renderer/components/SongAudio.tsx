@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { VocalGender } from '../../shared/types/song';
-import { GenerateSongOptions, SongGenerationStatus, SongTake } from '../../shared/types/songTake';
+import { GenerateSongOptions, SongGenerationStatus, SongTake, SongTakePatch } from '../../shared/types/songTake';
 import { useAiSettings } from '../context/AiSettingsContext';
 import AceStepServerControl from './AceStepServerControl';
 import SoundSettings from './SoundSettings';
@@ -39,6 +39,8 @@ export interface SongAudioState {
   takes: SongTake[];
   /** Take number as shown to the user: 1 is the oldest. */
   takeNumber: (takeId: string) => number;
+  /** What to call a take: its custom name, else "Take N". */
+  takeLabel: (take: SongTake) => string;
   currentTake: SongTake | null;
   selectTake: (takeId: string) => void;
   /** Loads (if needed) and plays a take in the bar's player. */
@@ -47,6 +49,10 @@ export interface SongAudioState {
   loadingTakeId: string | null;
   missingTakeIds: Set<string>;
   deleteTake: (take: SongTake) => Promise<void>;
+  /** Asks once, then deletes all of them. Returns whether they were deleted. */
+  deleteTakes: (takes: SongTake[]) => Promise<boolean>;
+  updateTake: (takeId: string, patch: SongTakePatch) => Promise<void>;
+  setFavorite: (takeIds: string[], favorite: boolean) => Promise<void>;
   status: SongGenerationStatus | null;
   elapsedMs: number;
   error: string | null;
@@ -153,6 +159,34 @@ export function useSongAudio(
     loadTakes();
   }
 
+  // Same player bookkeeping as deleteTake, for a whole selection at once.
+  async function deleteTakes(doomed: SongTake[]): Promise<boolean> {
+    if (doomed.length === 0) return false;
+    const noun = doomed.length === 1 ? 'take' : 'takes';
+    if (!confirm(`Delete ${doomed.length} ${noun}? The audio files are removed from this device.`)) return false;
+    const ids = new Set(doomed.map((t) => t.id));
+    if (loaded && ids.has(loaded.takeId)) releaseAudio();
+    if (currentTakeId && ids.has(currentTakeId)) setCurrentTakeId(null);
+    await window.electronAPI.takes.delete([...ids]);
+    await loadTakes();
+    return true;
+  }
+
+  async function updateTake(takeId: string, patch: SongTakePatch) {
+    const updated = await window.electronAPI.takes.update(takeId, patch);
+    if (updated) setTakes((prev) => prev.map((t) => (t.id === takeId ? updated : t)));
+  }
+
+  async function setFavorite(takeIds: string[], favorite: boolean) {
+    await window.electronAPI.takes.setFavorite(takeIds, favorite);
+    const ids = new Set(takeIds);
+    setTakes((prev) => prev.map((t) => (ids.has(t.id) ? { ...t, favorite } : t)));
+  }
+
+  function takeLabel(take: SongTake): string {
+    return take.name?.trim() || `Take ${takeNumber(take.id)}`;
+  }
+
   function takeNumber(takeId: string): number {
     const index = takes.findIndex((t) => t.id === takeId);
     return index === -1 ? 0 : takes.length - index;
@@ -185,6 +219,7 @@ export function useSongAudio(
     aiEnabled,
     takes,
     takeNumber,
+    takeLabel,
     currentTake,
     selectTake,
     playTake,
@@ -192,6 +227,9 @@ export function useSongAudio(
     loadingTakeId,
     missingTakeIds,
     deleteTake,
+    deleteTakes,
+    updateTake,
+    setFavorite,
     status,
     elapsedMs: status ? now - new Date(status.startedAt).getTime() : 0,
     error,
@@ -261,7 +299,7 @@ export function AudioBar({ audio, hasSound, panelOpen, onTogglePanel, onNeedSoun
             >
               {takes.map((take) => (
                 <option key={take.id} value={take.id}>
-                  Take {audio.takeNumber(take.id)} · {takeMeta(take)}
+                  {take.favorite ? '★ ' : ''}{audio.takeLabel(take)} · {takeMeta(take)}
                 </option>
               ))}
             </select>
@@ -306,6 +344,8 @@ interface PanelProps {
   vocalGender: VocalGender;
   onVocalGenderChange: (value: VocalGender) => Promise<void>;
   soundInputRef: React.RefObject<HTMLTextAreaElement>;
+  /** The lyrics text that a generation started now would send (for the takes' diffs). */
+  currentLyrics: string | null;
 }
 
 export function AudioPanel({
@@ -319,6 +359,7 @@ export function AudioPanel({
   vocalGender,
   onVocalGenderChange,
   soundInputRef,
+  currentLyrics,
 }: PanelProps) {
   const { takes } = audio;
   const generating = audio.status !== null;
@@ -385,7 +426,7 @@ export function AudioPanel({
           </p>
         )}
 
-        <TakeList audio={audio} />
+        <TakeList audio={audio} currentLyrics={currentLyrics} />
       </div>
     </aside>
   );

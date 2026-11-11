@@ -164,6 +164,19 @@ export async function initDatabase(dbPath?: string): Promise<Database> {
     // already exists
   }
 
+  // Migration: take management (star, rename, notes).
+  for (const column of [
+    `favorite INTEGER NOT NULL DEFAULT 0`,
+    `name TEXT`,
+    `notes TEXT NOT NULL DEFAULT ''`,
+  ]) {
+    try {
+      db.run(`ALTER TABLE song_takes ADD COLUMN ${column}`);
+    } catch (e) {
+      // already exists
+    }
+  }
+
   db.run(`CREATE INDEX IF NOT EXISTS idx_parts_song ON parts(song_id)`);
   db.run(`CREATE INDEX IF NOT EXISTS idx_part_versions_part ON part_versions(part_id)`);
   db.run(`CREATE INDEX IF NOT EXISTS idx_placements_song ON part_placements(song_id)`);

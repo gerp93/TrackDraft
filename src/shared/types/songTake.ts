@@ -15,7 +15,32 @@ export interface SongTake {
   /** The random seed the model used, when it reported one -- lets a take be regenerated
    * with the same starting point. */
   seed: string | null;
+  /** Starred by the user. */
+  favorite: boolean;
+  /** Custom name; null means the take is shown as "Take N". */
+  name: string | null;
+  /** Free-form notes about this take. */
+  notes: string;
   createdAt: string;
+}
+
+/** The user-editable fields of a take. */
+export interface SongTakePatch {
+  favorite?: boolean;
+  /** Empty or whitespace-only clears the custom name. */
+  name?: string | null;
+  notes?: string;
+}
+
+/** Outcome of exporting takes' audio files. */
+export interface TakeExportResult {
+  /** False when the user cancelled the dialog. */
+  chosen: boolean;
+  /** Where the file (or folder, for several) went. */
+  path: string | null;
+  saved: number;
+  /** Per-take failures, e.g. an audio file that isn't on this device. */
+  errors: string[];
 }
 
 export interface GenerateSongOptions {

@@ -3,7 +3,7 @@ import { Part, CreatePartInput, UpdatePartInput } from '../shared/types/part';
 import { PartPlacement, CreatePlacementInput } from '../shared/types/partPlacement';
 import { PartVersion, CreatePartVersionInput } from '../shared/types/partVersion';
 import { AiLogEntry, AiSettings, AiSettingsWithKeyFlag, AiTestConnectionResult } from '../shared/types/ai';
-import { AceStepServerStatus, GenerateSongOptions, SongGenerationStatus, SongTake } from '../shared/types/songTake';
+import { AceStepServerStatus, GenerateSongOptions, SongGenerationStatus, SongTake, SongTakePatch, TakeExportResult } from '../shared/types/songTake';
 import { ImportedSection, ImportSongInput } from '../shared/utils/songImport';
 
 declare global {
@@ -91,6 +91,13 @@ declare global {
         getTakes: (songId: string) => Promise<SongTake[]>;
         getTakeAudio: (takeId: string) => Promise<Uint8Array | null>;
         deleteTake: (takeId: string) => Promise<{ success: boolean }>;
+      };
+      takes: {
+        update: (takeId: string, patch: SongTakePatch) => Promise<SongTake | null>;
+        setFavorite: (takeIds: string[], favorite: boolean) => Promise<{ success: boolean }>;
+        delete: (takeIds: string[]) => Promise<{ success: boolean }>;
+        export: (takeId: string) => Promise<TakeExportResult>;
+        exportMany: (takeIds: string[]) => Promise<TakeExportResult>;
       };
     };
   }

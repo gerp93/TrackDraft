@@ -4,7 +4,7 @@ import { CreatePartInput, UpdatePartInput } from '../shared/types/part';
 import { CreatePlacementInput } from '../shared/types/partPlacement';
 import { CreatePartVersionInput } from '../shared/types/partVersion';
 import { AiSettings } from '../shared/types/ai';
-import { GenerateSongOptions } from '../shared/types/songTake';
+import { GenerateSongOptions, SongTakePatch } from '../shared/types/songTake';
 import { ImportSongInput } from '../shared/utils/songImport';
 
 contextBridge.exposeInMainWorld('electronAPI', {
@@ -94,5 +94,12 @@ contextBridge.exposeInMainWorld('electronAPI', {
     getTakes: (songId: string) => ipcRenderer.invoke('music:getTakes', songId),
     getTakeAudio: (takeId: string) => ipcRenderer.invoke('music:getTakeAudio', takeId),
     deleteTake: (takeId: string) => ipcRenderer.invoke('music:deleteTake', takeId),
+  },
+  takes: {
+    update: (takeId: string, patch: SongTakePatch) => ipcRenderer.invoke('takes:update', takeId, patch),
+    setFavorite: (takeIds: string[], favorite: boolean) => ipcRenderer.invoke('takes:setFavorite', takeIds, favorite),
+    delete: (takeIds: string[]) => ipcRenderer.invoke('takes:delete', takeIds),
+    export: (takeId: string) => ipcRenderer.invoke('takes:export', takeId),
+    exportMany: (takeIds: string[]) => ipcRenderer.invoke('takes:exportMany', takeIds),
   },
 });

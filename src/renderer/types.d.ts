@@ -4,6 +4,7 @@ import { PartPlacement, CreatePlacementInput } from '../shared/types/partPlaceme
 import { PartVersion, CreatePartVersionInput } from '../shared/types/partVersion';
 import { AiLogEntry, AiSettings, AiSettingsWithKeyFlag, AiTestConnectionResult } from '../shared/types/ai';
 import { AceStepServerStatus, GenerateSongOptions, SongGenerationStatus, SongTake } from '../shared/types/songTake';
+import { ImportedSection, ImportSongInput } from '../shared/utils/songImport';
 
 declare global {
   interface Window {
@@ -14,6 +15,7 @@ declare global {
         create: (input: CreateSongInput) => Promise<Song>;
         update: (id: string, input: UpdateSongInput) => Promise<Song>;
         delete: (id: string) => Promise<{ success: boolean }>;
+        import: (input: ImportSongInput) => Promise<Song>;
       };
       parts: {
         getBySong: (songId: string) => Promise<Part[]>;
@@ -66,6 +68,7 @@ declare global {
         testConnection: () => Promise<AiTestConnectionResult>;
         listOllamaModels: () => Promise<string[]>;
         suggestRhymeScheme: (lines: string[]) => Promise<{ scheme: string }>;
+        splitLyrics: (text: string) => Promise<ImportedSection[]>;
         reorderForRhymeScheme: (lines: string[], rhymeScheme: string) => Promise<{ lines: string[] }>;
         assist: (
           songId: string,

@@ -4,6 +4,12 @@ import { PartVersionService } from '../database/partVersionService';
 import { AiPromptSegment, AiTestConnectionResult } from '../../shared/types/ai';
 import { buildSongContextText } from '../../shared/utils/songContext';
 import { computePartLabel, getOrderedPartIds } from '../../shared/utils/partLabel';
+import {
+  AiSectionSpec,
+  ImportedSection,
+  nonBlankLinesOf,
+  sectionsFromAiSpecs,
+} from '../../shared/utils/songImport';
 import { getAiSettings, getClaudeApiKey } from './aiConfig';
 import { claudeChat } from './claudeProvider';
 import { listOllamaModels, ollamaChat } from './ollamaProvider';
@@ -234,6 +240,60 @@ export async function reorderForRhymeScheme(lines: string[], rhymeScheme: string
     reordered[nonBlankIndices[newSlot]] = nonBlankLines[originalPos];
   });
   return reordered;
+}
+
+/**
+ * AI import: the model splits pasted lyrics into song sections. It only returns line
+ * ranges over the numbered non-blank lines -- the lines themselves are copied from the
+ * user's text (sectionsFromAiSpecs), never retyped by the model.
+ */
+export async function splitLyricsIntoSections(text: string): Promise<ImportedSection[]> {
+  assertAiEnabled();
+  const lines = nonBlankLinesOf(text);
+  if (lines.length === 0) {
+    throw new Error('Paste some lyrics first.');
+  }
+
+  const systemSegments: AiPromptSegment[] = [
+    {
+      label: 'Instructions',
+      text:
+        'You split pasted song lyrics into sections. The lyrics come as numbered lines. Decide where each ' +
+        'section starts and ends and what it is: verse, pre-chorus, chorus, bridge, intro, outro, or custom ' +
+        '(with a short label such as "Guitar Solo" or "Interlude"). Section tags in the text, such as [Verse 1], ' +
+        'are hints -- the tag lines themselves are not lyrics and must not be inside any range. Leave out lines ' +
+        'that are not lyrics (site headers, credits, "Embed", ads, contributor counts) by not covering them.\n\n' +
+        'Respond with ONLY a JSON array, in song order, of objects like ' +
+        '{"type":"verse","start":0,"end":7}. "start" and "end" are inclusive line numbers; ranges must not ' +
+        'overlap and must go top to bottom. For a custom section add "label". For a section with no lyrics ' +
+        '(e.g. a solo) give {"type":"custom","label":"Guitar Solo","instrumental":true} with no range. ' +
+        'Where the text only says the chorus repeats (e.g. "[Chorus]" with nothing under it, or "(Chorus x2)"), ' +
+        'give {"type":"chorus"} with no range. No other text.',
+    },
+  ];
+  const userSegments: AiPromptSegment[] = [
+    { label: 'Numbered lines', text: lines.map((line, i) => `${i}: ${line}`).join('\n') },
+  ];
+
+  const raw = await chat(systemSegments, userSegments);
+  const match = raw.match(/\[[\s\S]*\]/);
+  let specs: unknown = null;
+  if (match) {
+    try {
+      specs = JSON.parse(match[0]);
+    } catch {
+      specs = null;
+    }
+  }
+  if (!Array.isArray(specs)) {
+    throw new Error("AI didn't return a usable section list -- try Split by tags instead.");
+  }
+
+  const sections = sectionsFromAiSpecs(text, specs as AiSectionSpec[]);
+  if (!sections.some((s) => s.lines.some((l) => l.trim()))) {
+    throw new Error("AI's sections didn't cover any of the lyrics -- try again, or Split by tags instead.");
+  }
+  return sections;
 }
 
 export async function assist(

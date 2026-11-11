@@ -5,6 +5,7 @@ import { CreatePlacementInput } from '../shared/types/partPlacement';
 import { CreatePartVersionInput } from '../shared/types/partVersion';
 import { AiSettings } from '../shared/types/ai';
 import { GenerateSongOptions } from '../shared/types/songTake';
+import { ImportSongInput } from '../shared/utils/songImport';
 
 contextBridge.exposeInMainWorld('electronAPI', {
   songs: {
@@ -13,6 +14,7 @@ contextBridge.exposeInMainWorld('electronAPI', {
     create: (input: CreateSongInput) => ipcRenderer.invoke('songs:create', input),
     update: (id: string, input: UpdateSongInput) => ipcRenderer.invoke('songs:update', id, input),
     delete: (id: string) => ipcRenderer.invoke('songs:delete', id),
+    import: (input: ImportSongInput) => ipcRenderer.invoke('songs:import', input),
   },
 
   parts: {
@@ -71,6 +73,7 @@ contextBridge.exposeInMainWorld('electronAPI', {
     testConnection: () => ipcRenderer.invoke('ai:testConnection'),
     listOllamaModels: () => ipcRenderer.invoke('ai:listOllamaModels'),
     suggestRhymeScheme: (lines: string[]) => ipcRenderer.invoke('ai:suggestRhymeScheme', lines),
+    splitLyrics: (text: string) => ipcRenderer.invoke('ai:splitLyrics', text),
     reorderForRhymeScheme: (lines: string[], rhymeScheme: string) =>
       ipcRenderer.invoke('ai:reorderForRhymeScheme', lines, rhymeScheme),
     assist: (songId: string, partId: string, instruction: string, rhymeScheme?: string | null) =>

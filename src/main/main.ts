@@ -32,7 +32,15 @@ import {
   setClaudeApiKey,
 } from './ai/aiConfig';
 import { listOllamaModels } from './ai/ollamaProvider';
-import { assist, reorderForRhymeScheme, suggestRhymeScheme, testConnection } from './ai/aiService';
+import {
+  assist,
+  reorderForRhymeScheme,
+  splitLyricsIntoSections,
+  suggestRhymeScheme,
+  testConnection,
+} from './ai/aiService';
+import { importSong } from './database/songImportService';
+import { ImportSongInput } from '../shared/utils/songImport';
 import { clearAiLog, getAiLog } from './ai/aiLog';
 import {
   deleteTake,
@@ -264,6 +272,9 @@ function registerIPCHandlers() {
   ipcMain.handle('songs:getById', (_, id: string) => songService.getSongById(id));
   ipcMain.handle('songs:create', (_, input: CreateSongInput) => songService.createSong(input));
   ipcMain.handle('songs:update', (_, id: string, input: UpdateSongInput) => songService.updateSong(id, input));
+  ipcMain.handle('songs:import', (_, input: ImportSongInput) =>
+    importSong({ songService, partService, partPlacementService, partVersionService }, input)
+  );
   ipcMain.handle('songs:delete', (_, id: string) => {
     deleteTakesForSong({ songTakeService }, id);
     songService.deleteSong(id);
@@ -408,6 +419,7 @@ function registerIPCHandlers() {
   ipcMain.handle('ai:testConnection', () => testConnection());
   ipcMain.handle('ai:listOllamaModels', () => listOllamaModels(getAiSettings().ollamaBaseUrl));
   ipcMain.handle('ai:suggestRhymeScheme', (_, lines: string[]) => suggestRhymeScheme(lines));
+  ipcMain.handle('ai:splitLyrics', (_, text: string) => splitLyricsIntoSections(text));
   ipcMain.handle('ai:reorderForRhymeScheme', async (_, lines: string[], rhymeScheme: string) => ({
     lines: await reorderForRhymeScheme(lines, rhymeScheme),
   }));

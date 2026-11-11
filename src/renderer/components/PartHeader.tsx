@@ -1,12 +1,17 @@
 import { ReactNode, useEffect, useState } from 'react';
+import { MAX_DIRECTION_LENGTH, sanitizeDirection } from '../../shared/utils/partDirection';
 
 interface Props {
   label: string;
   renameable: boolean;
   noLyrics: boolean;
+  direction: string;
+  /** Placements of this part in the arrangement; more than one means the direction is shared. */
+  placementCount: number;
   onRename: (label: string) => void;
   onDelete: () => void;
   onToggleNoLyrics: () => void;
+  onChangeDirection: (direction: string) => void;
   children: ReactNode;
 }
 
@@ -14,14 +19,30 @@ export default function PartHeader({
   label,
   renameable,
   noLyrics,
+  direction,
+  placementCount,
   onRename,
   onDelete,
   onToggleNoLyrics,
+  onChangeDirection,
   children,
 }: Props) {
   const [renaming, setRenaming] = useState(false);
   const [renameValue, setRenameValue] = useState(label);
   const [collapsed, setCollapsed] = useState(false);
+  const [editingDirection, setEditingDirection] = useState(false);
+  const [directionValue, setDirectionValue] = useState(direction);
+
+  useEffect(() => {
+    if (!editingDirection) setDirectionValue(direction);
+  }, [direction, editingDirection]);
+
+  function commitDirection() {
+    const cleaned = sanitizeDirection(directionValue);
+    setEditingDirection(false);
+    setDirectionValue(cleaned);
+    if (cleaned !== direction) onChangeDirection(cleaned);
+  }
 
   useEffect(() => {
     if (!renaming) setRenameValue(label);
@@ -70,10 +91,37 @@ export default function PartHeader({
             No lyrics
           </label>
         )}
+        {!direction && !editingDirection && (
+          <button
+            className="btn section-direction-add"
+            onClick={() => setEditingDirection(true)}
+            title="Tell the music model how this section should sound"
+          >
+            + Add direction
+          </button>
+        )}
         <button className="btn btn-danger" onClick={onDelete} title="Remove this part from the song">
           Delete Part
         </button>
       </div>
+      {(direction || editingDirection) && (
+        <div className="section-direction" style={{ display: collapsed ? 'none' : 'flex' }}>
+          <span className="section-direction-label">Audio direction</span>
+          <input
+            autoFocus={editingDirection && !direction}
+            value={directionValue}
+            maxLength={MAX_DIRECTION_LENGTH}
+            placeholder="How should this section sound? e.g. whispered, just piano"
+            onFocus={() => setEditingDirection(true)}
+            onChange={(e) => setDirectionValue(e.target.value)}
+            onBlur={commitDirection}
+            onKeyDown={(e) => e.key === 'Enter' && e.currentTarget.blur()}
+          />
+          {placementCount > 1 && (
+            <span className="section-direction-note">applies to all {placementCount} placements</span>
+          )}
+        </div>
+      )}
       <div style={{ display: collapsed ? 'none' : 'block' }}>{children}</div>
     </div>
   );

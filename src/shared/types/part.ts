@@ -11,6 +11,9 @@ export interface Part {
   /** Instrumental section (e.g. a guitar solo) -- no lyrics expected. The editor skips the
    * lyric-specific controls and the live song panel shows it as a placeholder tag. */
   noLyrics: boolean;
+  /** Short performance direction for audio generation ("whispered", "just piano"). Belongs
+   * to the part, so it applies to every placement of it. Empty string when unset. */
+  direction: string;
   createdAt: string;
   updatedAt: string;
 }
@@ -25,4 +28,5 @@ export interface CreatePartInput {
 export interface UpdatePartInput {
   customLabel?: string | null;
   noLyrics?: boolean;
+  direction?: string;
 }

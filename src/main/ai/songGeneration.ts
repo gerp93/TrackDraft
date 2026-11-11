@@ -57,9 +57,9 @@ export async function generateSong(
   const song = services.songService.getSongById(songId);
   if (!song) throw new Error('Song not found.');
 
-  const prompt = song.styleNotes.trim();
-  if (!prompt) {
-    throw new Error('Describe the sound first -- genre, mood, instruments, vocal style.');
+  const sound = song.styleNotes.trim();
+  if (!sound) {
+    throw new Error('Describe the sound first -- genre, mood, instruments, tempo.');
   }
 
   const placements = services.partPlacementService.getPlacementsBySong(songId);
@@ -68,6 +68,9 @@ export async function generateSong(
   for (const v of services.partVersionService.getLatestVersionsForSong(songId)) latestByPartId[v.partId] = v;
   // No sections at all is a legitimate request for an instrumental.
   const lyrics = buildMusicLyrics(placements, parts, latestByPartId) || '[Instrumental]';
+  // The voice choice only means something when there are words to sing.
+  const hasWords = lyrics.split('\n').some((line) => line.trim() && !/^\[.+\]$/.test(line.trim()));
+  const prompt = song.vocalGender && hasWords ? `${sound}, ${song.vocalGender} vocals` : sound;
 
   const baseUrl = settings.aceStepBaseUrl;
   const status: SongGenerationStatus = {

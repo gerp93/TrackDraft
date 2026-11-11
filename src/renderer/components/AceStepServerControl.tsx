@@ -13,11 +13,13 @@ interface Props {
   noFolderHint: React.ReactNode;
   /** Bump to force an immediate re-check (e.g. after the folder setting changes). */
   refreshKey?: unknown;
+  /** The caller knows a start is under way (Generate triggered it) before the next poll does. */
+  startingHint?: boolean;
 }
 
 /** Status line plus Start/Stop for the local ACE-Step server. Stop is only offered for
  * a server TrackDraft started itself -- one launched by hand is left alone. */
-export default function AceStepServerControl({ noFolderHint, refreshKey }: Props) {
+export default function AceStepServerControl({ noFolderHint, refreshKey, startingHint }: Props) {
   const [status, setStatus] = useState<AceStepServerStatus | null>(null);
   const [busy, setBusy] = useState<'starting' | 'stopping' | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -58,7 +60,7 @@ export default function AceStepServerControl({ noFolderHint, refreshKey }: Props
 
   if (!status) return null;
 
-  const isStarting = busy === 'starting' || status.starting;
+  const isStarting = !status.reachable && (busy === 'starting' || status.starting || Boolean(startingHint));
   let label: string;
   let color = 'var(--color-text-muted)';
   if (isStarting) {

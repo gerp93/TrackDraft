@@ -345,8 +345,262 @@ textarea {
   border-radius: var(--radius);
   box-shadow: var(--shadow);
   padding: 16px;
-  max-height: calc(100vh - 160px);
+  max-height: calc(100vh - 222px - var(--audio-bar-height, 0px));
   overflow-y: auto;
+}
+
+/* ---- Song tab layout -------------------------------------------------------------
+   Parts on the left, the full lyrics beside them, and the audio panel either pinned as
+   a third column (wide windows) or sliding out from the right (everything narrower).
+   A player bar stays docked along the bottom in both. */
+.song-layout {
+  display: flex;
+  gap: 24px;
+  align-items: flex-start;
+}
+
+.song-parts-column {
+  flex: 6 1 0;
+  min-width: 0;
+  max-width: 1000px;
+}
+
+.song-lyrics-column {
+  flex: 4 1 0;
+  min-width: 260px;
+  max-width: 640px;
+  position: sticky;
+  top: 0;
+}
+
+.audio-bar-dock {
+  position: sticky;
+  /* Sticky offsets are measured inside .main-content's padding (24px 32px); go negative
+     by that much, and bleed sideways, so the bar sits flush against the window edges. */
+  bottom: -24px;
+  margin: 16px -32px -24px;
+  z-index: 20;
+}
+
+.audio-bar {
+  display: flex;
+  align-items: center;
+  gap: 10px 20px;
+  flex-wrap: wrap;
+  padding: 10px 32px;
+  background: var(--color-surface);
+  border-top: 1px solid var(--color-border);
+  box-shadow: 0 -2px 8px rgba(0, 0, 0, 0.06);
+}
+
+.audio-bar-section {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-width: 0;
+}
+
+.audio-status {
+  font-size: 13px;
+  white-space: nowrap;
+}
+
+.audio-bar-error {
+  color: var(--color-accent-red);
+  font-size: 13px;
+  max-width: 320px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.audio-bar-player {
+  flex: 1 1 320px;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-width: 0;
+}
+
+.audio-bar-take-select {
+  width: auto;
+  max-width: 230px;
+  flex: 0 1 auto;
+}
+
+.audio-bar-audio {
+  flex: 1 1 200px;
+  min-width: 160px;
+  max-width: 720px;
+  height: 36px;
+}
+
+.audio-panel {
+  position: fixed;
+  top: var(--audio-panel-top, 0px);
+  right: 0;
+  bottom: var(--audio-bar-height, 0px);
+  width: min(420px, 92vw);
+  z-index: 15;
+  display: flex;
+  flex-direction: column;
+  background: var(--color-surface);
+  border-left: 1px solid var(--color-border);
+  box-shadow: -6px 0 18px rgba(0, 0, 0, 0.12);
+  transform: translateX(100%);
+  visibility: hidden;
+  transition: transform 0.2s ease, visibility 0.2s;
+}
+
+.audio-panel.open {
+  transform: translateX(0);
+  visibility: visible;
+}
+
+.audio-panel-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 14px 16px 10px;
+  flex-shrink: 0;
+}
+
+.audio-panel-body {
+  padding: 0 16px 16px;
+  overflow-y: auto;
+  flex: 1;
+}
+
+.audio-panel-subhead {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--color-text-muted);
+  text-transform: uppercase;
+  margin: 18px 0 4px;
+}
+
+.song-audio-options {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px 20px;
+  flex-wrap: wrap;
+  font-size: 13px;
+}
+
+.radio-group {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.radio-group label,
+.song-audio-length {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  cursor: pointer;
+}
+
+.radio-group input[type='radio'] {
+  width: auto;
+  margin: 0;
+  accent-color: var(--color-primary-action);
+}
+
+.radio-group-label {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--color-text-muted);
+  text-transform: uppercase;
+}
+
+.song-audio-length input {
+  width: 68px;
+}
+
+.take-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.take-row {
+  border-top: 1px solid var(--color-border);
+  padding: 8px 8px 6px;
+  margin: 0 -8px;
+  font-size: 13px;
+  border-radius: 6px;
+}
+
+.take-row.current {
+  background: var(--color-primary-action-hover);
+}
+
+.take-row-header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.take-row-title {
+  flex: 1;
+  min-width: 0;
+}
+
+.take-play {
+  width: 32px;
+  padding: 5px 0;
+  text-align: center;
+  flex-shrink: 0;
+}
+
+.take-row details summary {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.take-row details[open] summary {
+  white-space: normal;
+}
+
+/* Wide windows: there is room for the audio panel to stay put as a third column. */
+@media (min-width: 1500px) {
+  .audio-panel {
+    position: sticky;
+    top: 0;
+    bottom: auto;
+    right: auto;
+    flex: 0 0 420px;
+    width: auto;
+    max-height: calc(100vh - 222px - var(--audio-bar-height, 0px));
+    transform: none;
+    visibility: visible;
+    transition: none;
+    z-index: auto;
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius);
+    box-shadow: var(--shadow);
+  }
+
+  .audio-panel-close,
+  .audio-bar-panel-toggle {
+    display: none;
+  }
+}
+
+/* Very wide windows (most of an ultrawide): let the full lyrics flow into side-by-side
+   columns so a whole song can be read without scrolling. */
+@media (min-width: 2100px) {
+  .song-lyrics-column {
+    max-width: 1000px;
+  }
+
+  .live-song-text {
+    column-width: 400px;
+    column-gap: 40px;
+  }
 }
 
 .live-song-header {

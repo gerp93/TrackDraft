@@ -393,7 +393,7 @@ export default function Settings() {
 
             <h3 style={{ fontSize: 13, margin: '20px 0 4px' }}>Song audio (ACE-Step)</h3>
             <p className="text-muted" style={{ marginTop: 0, fontSize: 12 }}>
-              A song's Audio tab sends its lyrics and style to a local ACE-Step API server, which generates the
+              Generate Song on a song's page sends its lyrics and sound description to a local ACE-Step API server, which generates the
               music on your own GPU. Set the folder ACE-Step is installed in and TrackDraft starts the server
               for you when you generate (and stops it when you quit); leave it blank to run the server yourself.
             </p>

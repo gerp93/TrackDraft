@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import { useParams } from 'react-router-dom';
-import { Song } from '../../shared/types/song';
+import { Song, VocalGender } from '../../shared/types/song';
 import { Part, PartType } from '../../shared/types/part';
 import { PartPlacement } from '../../shared/types/partPlacement';
 import { computePartLabel, getOrderedPartIds } from '../../shared/utils/partLabel';
@@ -8,7 +8,7 @@ import PartHeader from '../components/PartHeader';
 import PartEditor from '../components/PartEditor';
 import InsertPartBar from '../components/InsertPartBar';
 import LiveSongPanel from '../components/LiveSongPanel';
-import SongAudioPanel from '../components/SongAudioPanel';
+import { AudioBar, AudioPanel, useSongAudio } from '../components/SongAudio';
 
 export default function SongDetail() {
   const { songId } = useParams<{ songId: string }>();
@@ -18,10 +18,43 @@ export default function SongDetail() {
   const [titleDraft, setTitleDraft] = useState('');
   const [justAddedPlacementId, setJustAddedPlacementId] = useState<string | null>(null);
   const [deletingPlacementId, setDeletingPlacementId] = useState<string | null>(null);
-  const [activeTab, setActiveTab] = useState<'parts' | 'notes' | 'audio'>('parts');
+  const [activeTab, setActiveTab] = useState<'song' | 'notes'>('song');
   const [styleNotesDraft, setStyleNotesDraft] = useState('');
   const [notesDraft, setNotesDraft] = useState('');
   const partRefs = useRef<Record<string, HTMLDivElement | null>>({});
+  const [audioPanelOpen, setAudioPanelOpen] = useState(false);
+  const songTabRef = useRef<HTMLDivElement | null>(null);
+  const audioBarRef = useRef<HTMLDivElement | null>(null);
+  const soundInputRef = useRef<HTMLTextAreaElement>(null);
+  const audio = useSongAudio(songId ?? '', styleNotesDraft, handleStyleNotesBlur);
+
+  // The slide-out audio panel is position:fixed, so it has to be told where the page
+  // area starts (below the top bar) and where the docked player bar begins -- both
+  // change with window size, and the bar's height changes when it wraps.
+  useEffect(() => {
+    const root = songTabRef.current;
+    const bar = audioBarRef.current;
+    if (!root || !bar) return;
+    const measure = () => {
+      const scroller = root.closest('.main-content');
+      root.style.setProperty('--audio-panel-top', `${scroller?.getBoundingClientRect().top ?? 0}px`);
+      root.style.setProperty('--audio-bar-height', `${bar.offsetHeight}px`);
+    };
+    measure();
+    const observer = new ResizeObserver(measure);
+    observer.observe(bar);
+    window.addEventListener('resize', measure);
+    return () => {
+      observer.disconnect();
+      window.removeEventListener('resize', measure);
+    };
+  }, [song !== null, activeTab]);
+
+  function handleNeedSound() {
+    setAudioPanelOpen(true);
+    // After the panel has slid in (it is visibility:hidden while closed).
+    setTimeout(() => soundInputRef.current?.focus(), 250);
+  }
 
   useEffect(() => {
     if (songId) load(songId);
@@ -63,6 +96,12 @@ export default function SongDetail() {
       await window.electronAPI.songs.update(songId, { styleNotes: styleNotesDraft });
       await load(songId);
     }
+  }
+
+  async function handleVocalGenderChange(vocalGender: VocalGender) {
+    if (!songId) return;
+    await window.electronAPI.songs.update(songId, { vocalGender });
+    await load(songId);
   }
 
   async function handleNotesBlur() {
@@ -150,10 +189,10 @@ export default function SongDetail() {
 
       <div className="song-tabs">
         <button
-          className={`song-tab-btn${activeTab === 'parts' ? ' active' : ''}`}
-          onClick={() => setActiveTab('parts')}
+          className={`song-tab-btn${activeTab === 'song' ? ' active' : ''}`}
+          onClick={() => setActiveTab('song')}
         >
-          Parts
+          Song
         </button>
         <button
           className={`song-tab-btn${activeTab === 'notes' ? ' active' : ''}`}
@@ -161,35 +200,10 @@ export default function SongDetail() {
         >
           Notes
         </button>
-        <button
-          className={`song-tab-btn${activeTab === 'audio' ? ' active' : ''}`}
-          onClick={() => setActiveTab('audio')}
-        >
-          Audio
-        </button>
       </div>
-
-      {activeTab === 'audio' && songId && (
-        <SongAudioPanel
-          songId={songId}
-          styleNotes={styleNotesDraft}
-          onStyleNotesChange={setStyleNotesDraft}
-          onStyleNotesCommit={handleStyleNotesBlur}
-        />
-      )}
 
       {activeTab === 'notes' && (
         <div style={{ display: 'flex', flexDirection: 'column', gap: 16, maxWidth: 720 }}>
-          <div className="field">
-            <label>Style Notes</label>
-            <textarea
-              className="notes-textarea"
-              value={styleNotesDraft}
-              onChange={(e) => setStyleNotesDraft(e.target.value)}
-              onBlur={handleStyleNotesBlur}
-              placeholder="Tempo, instrumentation, references, vibe..."
-            />
-          </div>
           <div className="field">
             <label>Notes</label>
             <textarea
@@ -197,14 +211,15 @@ export default function SongDetail() {
               value={notesDraft}
               onChange={(e) => setNotesDraft(e.target.value)}
               onBlur={handleNotesBlur}
-              placeholder="Anything else worth jotting down..."
+              placeholder="Anything worth jotting down about this song..."
             />
           </div>
         </div>
       )}
 
-      <div style={{ display: activeTab === 'parts' ? 'flex' : 'none', gap: 24, alignItems: 'flex-start' }}>
-        <div style={{ flex: '6 1 0', minWidth: 0 }}>
+      <div ref={songTabRef} style={{ display: activeTab === 'song' ? 'block' : 'none' }}>
+      <div className="song-layout">
+        <div className="song-parts-column">
           {placements.length === 0 && (
             <div className="text-muted" style={{ marginBottom: 8 }}>
               Add a part to start writing.
@@ -269,10 +284,36 @@ export default function SongDetail() {
         </div>
 
         {songId && (
-          <div style={{ flex: '4 1 0', minWidth: 260, position: 'sticky', top: 0 }}>
+          <div className="song-lyrics-column">
             <LiveSongPanel songId={songId} placements={placements} parts={parts} />
           </div>
         )}
+
+        {songId && (
+          <AudioPanel
+            audio={audio}
+            songId={songId}
+            open={audioPanelOpen}
+            onClose={() => setAudioPanelOpen(false)}
+            styleNotes={styleNotesDraft}
+            onStyleNotesChange={setStyleNotesDraft}
+            onStyleNotesCommit={handleStyleNotesBlur}
+            vocalGender={song.vocalGender}
+            onVocalGenderChange={handleVocalGenderChange}
+            soundInputRef={soundInputRef}
+          />
+        )}
+      </div>
+
+      <div ref={audioBarRef} className="audio-bar-dock">
+        <AudioBar
+          audio={audio}
+          hasSound={styleNotesDraft.trim().length > 0}
+          panelOpen={audioPanelOpen}
+          onTogglePanel={() => setAudioPanelOpen((open) => !open)}
+          onNeedSound={handleNeedSound}
+        />
+      </div>
       </div>
     </div>
   );

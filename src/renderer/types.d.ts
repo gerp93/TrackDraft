@@ -14,6 +14,7 @@ declare global {
         getById: (id: string) => Promise<Song | null>;
         create: (input: CreateSongInput) => Promise<Song>;
         update: (id: string, input: UpdateSongInput) => Promise<Song>;
+        setHidden: (id: string, hidden: boolean) => Promise<Song>;
         delete: (id: string) => Promise<{ success: boolean }>;
         import: (input: ImportSongInput) => Promise<Song>;
       };

@@ -13,6 +13,7 @@ contextBridge.exposeInMainWorld('electronAPI', {
     getById: (id: string) => ipcRenderer.invoke('songs:getById', id),
     create: (input: CreateSongInput) => ipcRenderer.invoke('songs:create', input),
     update: (id: string, input: UpdateSongInput) => ipcRenderer.invoke('songs:update', id, input),
+    setHidden: (id: string, hidden: boolean) => ipcRenderer.invoke('songs:setHidden', id, hidden),
     delete: (id: string) => ipcRenderer.invoke('songs:delete', id),
     import: (input: ImportSongInput) => ipcRenderer.invoke('songs:import', input),
   },

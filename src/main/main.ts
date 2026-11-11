@@ -275,6 +275,7 @@ function registerIPCHandlers() {
   ipcMain.handle('songs:import', (_, input: ImportSongInput) =>
     importSong({ songService, partService, partPlacementService, partVersionService }, input)
   );
+  ipcMain.handle('songs:setHidden', (_, id: string, hidden: boolean) => songService.setSongHidden(id, hidden));
   ipcMain.handle('songs:delete', (_, id: string) => {
     deleteTakesForSong({ songTakeService }, id);
     songService.deleteSong(id);

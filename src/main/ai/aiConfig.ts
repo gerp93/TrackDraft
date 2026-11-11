@@ -12,6 +12,7 @@ const DEFAULT_SETTINGS: AiSettings = {
   // resolve 'localhost' to the IPv6 loopback first and fail before ever trying IPv4.
   ollamaBaseUrl: 'http://127.0.0.1:11434',
   aceStepBaseUrl: 'http://127.0.0.1:8001',
+  aceStepDir: '',
 };
 
 function getSettingsPath(): string {

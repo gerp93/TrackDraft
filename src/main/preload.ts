@@ -80,6 +80,10 @@ contextBridge.exposeInMainWorld('electronAPI', {
 
   music: {
     testConnection: () => ipcRenderer.invoke('music:testConnection'),
+    serverStatus: () => ipcRenderer.invoke('music:serverStatus'),
+    startServer: () => ipcRenderer.invoke('music:startServer'),
+    stopServer: () => ipcRenderer.invoke('music:stopServer'),
+    browseServerDir: () => ipcRenderer.invoke('music:browseServerDir'),
     generate: (songId: string, options?: GenerateSongOptions) => ipcRenderer.invoke('music:generate', songId, options),
     getActive: (songId: string) => ipcRenderer.invoke('music:getActive', songId),
     getTakes: (songId: string) => ipcRenderer.invoke('music:getTakes', songId),

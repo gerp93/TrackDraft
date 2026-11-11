@@ -11,6 +11,8 @@ export interface AiSettings {
   /** Local ACE-Step API server used to generate audio for a song. Independent of
    * `provider`, which only picks the text model for lyric help. */
   aceStepBaseUrl: string;
+  /** ACE-Step install folder. When set, TrackDraft can start the server itself. */
+  aceStepDir: string;
 }
 
 export interface AiSettingsWithKeyFlag extends AiSettings {

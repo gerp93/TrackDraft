@@ -8,6 +8,7 @@ import { GenerateSongOptions, SongGenerationStatus, SongTake } from '../../share
 import { buildMusicLyrics } from '../../shared/utils/musicLyrics';
 import { getAiSettings } from './aiConfig';
 import { aceStepDownload, aceStepHealth, aceStepPoll, aceStepSubmit } from './aceStepProvider';
+import { ensureAceStepServer, getAceStepServerStatus } from './aceStepServer';
 import { deleteTakeFile, readTakeFile, writeTakeFile } from './takeStorage';
 
 interface Services {
@@ -78,6 +79,15 @@ export async function generateSong(
   active.set(songId, status);
 
   try {
+    // Start the server ourselves when it isn't running and we know where it lives;
+    // otherwise fall through and let the submit report that it can't be reached.
+    const server = await getAceStepServerStatus();
+    if (!server.reachable && server.canStart) {
+      status.stage = 'starting ACE-Step server';
+      await ensureAceStepServer();
+      status.stage = 'queued';
+    }
+
     const taskId = await aceStepSubmit(baseUrl, { prompt, lyrics, durationSeconds: options.durationSeconds });
 
     const deadline = Date.now() + MAX_WAIT_MS;

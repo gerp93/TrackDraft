@@ -20,6 +20,20 @@ export interface GenerateSongOptions {
   durationSeconds?: number | null;
 }
 
+/** State of the local ACE-Step server, as far as this app can tell. */
+export interface AceStepServerStatus {
+  /** Something is answering at the configured URL. */
+  reachable: boolean;
+  /** This app is in the middle of starting it. */
+  starting: boolean;
+  /** The running server was started by this app (so this app may stop it). */
+  managed: boolean;
+  /** An install folder is set and the URL is local, so this app is able to start it. */
+  canStart: boolean;
+  /** Why the last start attempt failed, if it did. */
+  lastError: string | null;
+}
+
 /** A generation that is still running, so the UI can show it after a remount. */
 export interface SongGenerationStatus {
   songId: string;

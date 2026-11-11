@@ -60,6 +60,13 @@ export async function initDatabase(dbPath?: string): Promise<Database> {
     // already exists
   }
 
+  // Migration: parts created before per-section audio direction existed.
+  try {
+    db.run(`ALTER TABLE parts ADD COLUMN direction TEXT NOT NULL DEFAULT ''`);
+  } catch (e) {
+    // already exists
+  }
+
   // Migration: songs created before the style notes / notes fields existed.
   try {
     db.run(`ALTER TABLE songs ADD COLUMN style_notes TEXT NOT NULL DEFAULT ''`);
@@ -80,6 +87,33 @@ export async function initDatabase(dbPath?: string): Promise<Database> {
   // Migration: songs created before the privacy-screen (hide from song list) flag existed.
   try {
     db.run(`ALTER TABLE songs ADD COLUMN is_hidden INTEGER NOT NULL DEFAULT 0`);
+  } catch (e) {
+    // already exists
+  }
+  // Migration: songs created before the generation inputs (tempo, key, time signature,
+  // reference track) existed. NULL / '' mean "let the music model decide".
+  try {
+    db.run(`ALTER TABLE songs ADD COLUMN bpm INTEGER`);
+  } catch (e) {
+    // already exists
+  }
+  try {
+    db.run(`ALTER TABLE songs ADD COLUMN key_scale TEXT NOT NULL DEFAULT ''`);
+  } catch (e) {
+    // already exists
+  }
+  try {
+    db.run(`ALTER TABLE songs ADD COLUMN time_signature TEXT NOT NULL DEFAULT ''`);
+  } catch (e) {
+    // already exists
+  }
+  try {
+    db.run(`ALTER TABLE songs ADD COLUMN reference_audio_path TEXT NOT NULL DEFAULT ''`);
+  } catch (e) {
+    // already exists
+  }
+  try {
+    db.run(`ALTER TABLE songs ADD COLUMN cover_strength REAL`);
   } catch (e) {
     // already exists
   }
@@ -138,6 +172,37 @@ export async function initDatabase(dbPath?: string): Promise<Database> {
     )
   `);
   db.run(`CREATE INDEX IF NOT EXISTS idx_song_takes_song ON song_takes(song_id)`);
+
+  // Named "Sound" descriptions (style notes + voice) that can be reapplied to any song.
+  db.run(`
+    CREATE TABLE IF NOT EXISTS sound_presets (
+      id TEXT PRIMARY KEY,
+      name TEXT NOT NULL,
+      style_notes TEXT NOT NULL,
+      vocal_gender TEXT NOT NULL DEFAULT '',
+      created_at TEXT NOT NULL
+    )
+  `);
+
+  // Migration: takes created before the model's seed was recorded.
+  try {
+    db.run(`ALTER TABLE song_takes ADD COLUMN seed TEXT`);
+  } catch (e) {
+    // already exists
+  }
+
+  // Migration: take management (star, rename, notes).
+  for (const column of [
+    `favorite INTEGER NOT NULL DEFAULT 0`,
+    `name TEXT`,
+    `notes TEXT NOT NULL DEFAULT ''`,
+  ]) {
+    try {
+      db.run(`ALTER TABLE song_takes ADD COLUMN ${column}`);
+    } catch (e) {
+      // already exists
+    }
+  }
 
   db.run(`CREATE INDEX IF NOT EXISTS idx_parts_song ON parts(song_id)`);
   db.run(`CREATE INDEX IF NOT EXISTS idx_part_versions_part ON part_versions(part_id)`);

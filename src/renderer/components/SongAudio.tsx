@@ -1,9 +1,12 @@
 import { useEffect, useRef, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { VocalGender } from '../../shared/types/song';
-import { SongGenerationStatus, SongTake } from '../../shared/types/songTake';
+import { GenerateSongOptions, SongGenerationStatus, SongTake, SongTakePatch } from '../../shared/types/songTake';
 import { useAiSettings } from '../context/AiSettingsContext';
 import AceStepServerControl from './AceStepServerControl';
+import SoundSettings from './SoundSettings';
+import TakeList from './TakeList';
+import { formatClock, takeMeta } from './audioFormat';
 
 /**
  * Song audio is split across two surfaces that share one state (useSongAudio):
@@ -15,12 +18,6 @@ import AceStepServerControl from './AceStepServerControl';
  *   wide windows; a slide-out from the right on narrower ones (see index.css).
  */
 
-const VOICE_OPTIONS: { value: VocalGender; label: string }[] = [
-  { value: '', label: 'Auto' },
-  { value: 'female', label: 'Female' },
-  { value: 'male', label: 'Male' },
-];
-
 const AUDIO_MIME_TYPES: Record<string, string> = {
   flac: 'audio/flac',
   mp3: 'audio/mpeg',
@@ -31,23 +28,6 @@ const AUDIO_MIME_TYPES: Record<string, string> = {
 
 const STARTING_SERVER_STAGE = 'starting ACE-Step server';
 
-function formatClock(ms: number): string {
-  const totalSeconds = Math.max(0, Math.floor(ms / 1000));
-  return `${Math.floor(totalSeconds / 60)}:${String(totalSeconds % 60).padStart(2, '0')}`;
-}
-
-function formatTakeTime(iso: string): string {
-  const date = new Date(iso);
-  const sameDay = date.toDateString() === new Date().toDateString();
-  return sameDay
-    ? date.toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' })
-    : date.toLocaleString([], { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' });
-}
-
-function takeMeta(take: SongTake): string {
-  const length = take.durationSeconds ? ` · ${formatClock(take.durationSeconds * 1000)}` : '';
-  return `${formatTakeTime(take.createdAt)}${length}`;
-}
 
 interface LoadedAudio {
   takeId: string;
@@ -59,6 +39,8 @@ export interface SongAudioState {
   takes: SongTake[];
   /** Take number as shown to the user: 1 is the oldest. */
   takeNumber: (takeId: string) => number;
+  /** What to call a take: its custom name, else "Take N". */
+  takeLabel: (take: SongTake) => string;
   currentTake: SongTake | null;
   selectTake: (takeId: string) => void;
   /** Loads (if needed) and plays a take in the bar's player. */
@@ -67,13 +49,19 @@ export interface SongAudioState {
   loadingTakeId: string | null;
   missingTakeIds: Set<string>;
   deleteTake: (take: SongTake) => Promise<void>;
+  /** Asks once, then deletes all of them. Returns whether they were deleted. */
+  deleteTakes: (takes: SongTake[]) => Promise<boolean>;
+  updateTake: (takeId: string, patch: SongTakePatch) => Promise<void>;
+  setFavorite: (takeIds: string[], favorite: boolean) => Promise<void>;
   status: SongGenerationStatus | null;
   elapsedMs: number;
   error: string | null;
   durationInput: string;
   setDurationInput: (value: string) => void;
   canGenerate: boolean;
-  generate: () => Promise<void>;
+  /** Starts a generation from the song's current lyrics and sound settings. `overrides`
+   * carries the per-take variations: reuse a take's seed, or restyle (cover) a take. */
+  generate: (overrides?: Pick<GenerateSongOptions, 'seed' | 'coverOfTakeId'>) => Promise<void>;
 }
 
 export function useSongAudio(
@@ -171,12 +159,40 @@ export function useSongAudio(
     loadTakes();
   }
 
+  // Same player bookkeeping as deleteTake, for a whole selection at once.
+  async function deleteTakes(doomed: SongTake[]): Promise<boolean> {
+    if (doomed.length === 0) return false;
+    const noun = doomed.length === 1 ? 'take' : 'takes';
+    if (!confirm(`Delete ${doomed.length} ${noun}? The audio files are removed from this device.`)) return false;
+    const ids = new Set(doomed.map((t) => t.id));
+    if (loaded && ids.has(loaded.takeId)) releaseAudio();
+    if (currentTakeId && ids.has(currentTakeId)) setCurrentTakeId(null);
+    await window.electronAPI.takes.delete([...ids]);
+    await loadTakes();
+    return true;
+  }
+
+  async function updateTake(takeId: string, patch: SongTakePatch) {
+    const updated = await window.electronAPI.takes.update(takeId, patch);
+    if (updated) setTakes((prev) => prev.map((t) => (t.id === takeId ? updated : t)));
+  }
+
+  async function setFavorite(takeIds: string[], favorite: boolean) {
+    await window.electronAPI.takes.setFavorite(takeIds, favorite);
+    const ids = new Set(takeIds);
+    setTakes((prev) => prev.map((t) => (ids.has(t.id) ? { ...t, favorite } : t)));
+  }
+
+  function takeLabel(take: SongTake): string {
+    return take.name?.trim() || `Take ${takeNumber(take.id)}`;
+  }
+
   function takeNumber(takeId: string): number {
     const index = takes.findIndex((t) => t.id === takeId);
     return index === -1 ? 0 : takes.length - index;
   }
 
-  async function generate() {
+  async function generate(overrides: Pick<GenerateSongOptions, 'seed' | 'coverOfTakeId'> = {}) {
     setError(null);
     const minutes = Number(durationInput);
     const durationSeconds =
@@ -185,7 +201,7 @@ export function useSongAudio(
     setNow(Date.now());
     setStatus({ songId, startedAt: new Date().toISOString(), progress: 0, stage: 'queued' });
     try {
-      const created = await window.electronAPI.music.generate(songId, { durationSeconds });
+      const created = await window.electronAPI.music.generate(songId, { durationSeconds, ...overrides });
       // Put the new take in the player, ready to play -- without cutting off whatever
       // the user is listening to if they started another take while waiting.
       if (created[0] && !loaded) setCurrentTakeId(created[0].id);
@@ -203,6 +219,7 @@ export function useSongAudio(
     aiEnabled,
     takes,
     takeNumber,
+    takeLabel,
     currentTake,
     selectTake,
     playTake,
@@ -210,6 +227,9 @@ export function useSongAudio(
     loadingTakeId,
     missingTakeIds,
     deleteTake,
+    deleteTakes,
+    updateTake,
+    setFavorite,
     status,
     elapsedMs: status ? now - new Date(status.startedAt).getTime() : 0,
     error,
@@ -279,7 +299,7 @@ export function AudioBar({ audio, hasSound, panelOpen, onTogglePanel, onNeedSoun
             >
               {takes.map((take) => (
                 <option key={take.id} value={take.id}>
-                  Take {audio.takeNumber(take.id)} · {takeMeta(take)}
+                  {take.favorite ? '★ ' : ''}{audio.takeLabel(take)} · {takeMeta(take)}
                 </option>
               ))}
             </select>
@@ -324,6 +344,8 @@ interface PanelProps {
   vocalGender: VocalGender;
   onVocalGenderChange: (value: VocalGender) => Promise<void>;
   soundInputRef: React.RefObject<HTMLTextAreaElement>;
+  /** The lyrics text that a generation started now would send (for the takes' diffs). */
+  currentLyrics: string | null;
 }
 
 export function AudioPanel({
@@ -337,8 +359,9 @@ export function AudioPanel({
   vocalGender,
   onVocalGenderChange,
   soundInputRef,
+  currentLyrics,
 }: PanelProps) {
-  const { takes, currentTake, loaded } = audio;
+  const { takes } = audio;
   const generating = audio.status !== null;
 
   useEffect(() => {
@@ -362,50 +385,16 @@ export function AudioPanel({
       </div>
 
       <div className="audio-panel-body">
-        <div className="field">
-          <label htmlFor="song-sound">Sound</label>
-          <textarea
-            id="song-sound"
-            ref={soundInputRef}
-            rows={3}
-            style={{ width: '100%', resize: 'vertical', lineHeight: 1.5 }}
-            value={styleNotes}
-            onChange={(e) => onStyleNotesChange(e.target.value)}
-            onBlur={() => onStyleNotesCommit()}
-            placeholder="Genre, mood, instruments, tempo -- e.g. moody indie rock, 95 bpm"
-          />
-        </div>
-
-        <div className="song-audio-options">
-          <div role="radiogroup" aria-label="Singing voice" className="radio-group">
-            <span className="radio-group-label">Voice</span>
-            {VOICE_OPTIONS.map((option) => (
-              <label key={option.value || 'auto'}>
-                <input
-                  type="radio"
-                  name={`voice-${songId}`}
-                  checked={vocalGender === option.value}
-                  onChange={() => onVocalGenderChange(option.value)}
-                />
-                {option.label}
-              </label>
-            ))}
-          </div>
-          <label className="song-audio-length">
-            <span className="radio-group-label">Length</span>
-            <input
-              type="number"
-              min={0.5}
-              max={8}
-              step={0.5}
-              value={audio.durationInput}
-              onChange={(e) => audio.setDurationInput(e.target.value)}
-              placeholder="auto"
-              disabled={generating}
-            />
-            min
-          </label>
-        </div>
+        <SoundSettings
+          audio={audio}
+          songId={songId}
+          styleNotes={styleNotes}
+          onStyleNotesChange={onStyleNotesChange}
+          onStyleNotesCommit={onStyleNotesCommit}
+          vocalGender={vocalGender}
+          onVocalGenderChange={onVocalGenderChange}
+          soundInputRef={soundInputRef}
+        />
 
         {audio.aiEnabled ? (
           <>
@@ -437,57 +426,7 @@ export function AudioPanel({
           </p>
         )}
 
-        <h3 className="audio-panel-subhead">Takes{takes.length ? ` (${takes.length})` : ''}</h3>
-        {takes.length === 0 && (
-          <p className="text-muted" style={{ fontSize: 13, margin: 0 }}>
-            Each generation is kept here so you can compare them.
-          </p>
-        )}
-        <ul className="take-list">
-          {takes.map((take) => {
-            const isCurrent = currentTake?.id === take.id;
-            const isPlaying = loaded?.takeId === take.id;
-            return (
-              <li key={take.id} className={`take-row${isCurrent ? ' current' : ''}`}>
-                <div className="take-row-header">
-                  <button
-                    className="btn take-play"
-                    disabled={audio.loadingTakeId === take.id || isPlaying}
-                    onClick={() => audio.playTake(take.id)}
-                    aria-label={`Play take ${audio.takeNumber(take.id)}`}
-                    title={isPlaying ? 'In the player' : 'Play in the player bar'}
-                  >
-                    {isPlaying ? '♪' : '▶'}
-                  </button>
-                  <span className="take-row-title">
-                    <strong>Take {audio.takeNumber(take.id)}</strong>
-                    <span className="text-muted"> · {takeMeta(take)}</span>
-                  </span>
-                  <button
-                    className="btn btn-danger"
-                    onClick={() => audio.deleteTake(take)}
-                    aria-label={`Delete take ${audio.takeNumber(take.id)}`}
-                  >
-                    Delete
-                  </button>
-                </div>
-                {audio.missingTakeIds.has(take.id) && (
-                  <div className="text-muted" style={{ fontSize: 12, marginTop: 4 }}>
-                    The audio file for this take isn't on this device.
-                  </div>
-                )}
-                <details style={{ marginTop: 4, fontSize: 12 }}>
-                  <summary className="text-muted" style={{ cursor: 'pointer' }}>
-                    What was sent
-                  </summary>
-                  <pre className="live-song-text" style={{ marginTop: 6, fontSize: 12 }}>
-                    {`${take.prompt}\n\n${take.lyrics}`}
-                  </pre>
-                </details>
-              </li>
-            );
-          })}
-        </ul>
+        <TakeList audio={audio} currentLyrics={currentLyrics} />
       </div>
     </aside>
   );

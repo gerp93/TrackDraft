@@ -2,6 +2,7 @@ import { Database } from 'sql.js';
 import { Part, CreatePartInput, UpdatePartInput } from '../../shared/types/part';
 import { v4 as uuidv4 } from 'uuid';
 import { saveDatabase } from './schema';
+import { sanitizeDirection } from '../../shared/utils/partDirection';
 
 function rowToPart(columns: string[], row: any[]): Part {
   const obj: any = {};
@@ -14,6 +15,7 @@ function rowToPart(columns: string[], row: any[]): Part {
     partType: obj.partType,
     customLabel: obj.partType === 'custom' ? obj.label : null,
     noLyrics: !!obj.noLyrics,
+    direction: obj.direction ?? '',
     createdAt: obj.createdAt,
     updatedAt: obj.updatedAt,
   };
@@ -25,6 +27,7 @@ const SELECT_COLUMNS = `
   part_type as partType,
   label,
   no_lyrics as noLyrics,
+  direction,
   created_at as createdAt,
   updated_at as updatedAt
 `;
@@ -84,6 +87,14 @@ export class PartService {
     if (input.noLyrics !== undefined) {
       this.db.run(`UPDATE parts SET no_lyrics = ?, updated_at = ? WHERE id = ?`, [
         input.noLyrics ? 1 : 0,
+        now,
+        id,
+      ]);
+    }
+
+    if (input.direction !== undefined) {
+      this.db.run(`UPDATE parts SET direction = ?, updated_at = ? WHERE id = ?`, [
+        sanitizeDirection(input.direction),
         now,
         id,
       ]);

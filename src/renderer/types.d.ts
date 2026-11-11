@@ -3,8 +3,9 @@ import { Part, CreatePartInput, UpdatePartInput } from '../shared/types/part';
 import { PartPlacement, CreatePlacementInput } from '../shared/types/partPlacement';
 import { PartVersion, CreatePartVersionInput } from '../shared/types/partVersion';
 import { AiLogEntry, AiSettings, AiSettingsWithKeyFlag, AiTestConnectionResult } from '../shared/types/ai';
-import { AceStepServerStatus, GenerateSongOptions, SongGenerationStatus, SongTake } from '../shared/types/songTake';
+import { AceStepServerStatus, GenerateSongOptions, SongGenerationStatus, SongTake, SongTakePatch, TakeExportResult } from '../shared/types/songTake';
 import { ImportedSection, ImportSongInput } from '../shared/utils/songImport';
+import { CreateSoundPresetInput, SoundPreset } from '../shared/types/soundPreset';
 
 declare global {
   interface Window {
@@ -80,6 +81,11 @@ declare global {
         getLog: () => Promise<AiLogEntry[]>;
         clearLog: () => Promise<{ success: boolean }>;
       };
+      presets: {
+        getAll: () => Promise<SoundPreset[]>;
+        create: (input: CreateSoundPresetInput) => Promise<SoundPreset>;
+        delete: (id: string) => Promise<{ success: boolean }>;
+      };
       music: {
         testConnection: () => Promise<AiTestConnectionResult>;
         serverStatus: () => Promise<AceStepServerStatus>;
@@ -87,10 +93,18 @@ declare global {
         stopServer: () => Promise<AceStepServerStatus>;
         browseServerDir: () => Promise<{ path: string; looksValid: boolean } | null>;
         generate: (songId: string, options?: GenerateSongOptions) => Promise<SongTake[]>;
+        browseReferenceAudio: () => Promise<string | null>;
         getActive: (songId: string) => Promise<SongGenerationStatus | null>;
         getTakes: (songId: string) => Promise<SongTake[]>;
         getTakeAudio: (takeId: string) => Promise<Uint8Array | null>;
         deleteTake: (takeId: string) => Promise<{ success: boolean }>;
+      };
+      takes: {
+        update: (takeId: string, patch: SongTakePatch) => Promise<SongTake | null>;
+        setFavorite: (takeIds: string[], favorite: boolean) => Promise<{ success: boolean }>;
+        delete: (takeIds: string[]) => Promise<{ success: boolean }>;
+        export: (takeId: string) => Promise<TakeExportResult>;
+        exportMany: (takeIds: string[]) => Promise<TakeExportResult>;
       };
     };
   }

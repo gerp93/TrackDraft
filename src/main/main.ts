@@ -17,6 +17,9 @@ import { PartService } from './database/partService';
 import { PartPlacementService } from './database/partPlacementService';
 import { PartVersionService } from './database/partVersionService';
 import { SongTakeService } from './database/songTakeService';
+import { SoundPresetService } from './database/soundPresetService';
+import { CreateSoundPresetInput } from '../shared/types/soundPreset';
+import { registerTakesIpc } from './ai/takesIpc';
 import { CreateSongInput, UpdateSongInput } from '../shared/types/song';
 import { CreatePartInput, UpdatePartInput } from '../shared/types/part';
 import { CreatePlacementInput } from '../shared/types/partPlacement';
@@ -98,6 +101,7 @@ let partService: PartService;
 let partPlacementService: PartPlacementService;
 let partVersionService: PartVersionService;
 let songTakeService: SongTakeService;
+let soundPresetService: SoundPresetService;
 
 function createWindow() {
   mainWindow = new BrowserWindow({
@@ -237,6 +241,7 @@ app.whenReady().then(async () => {
   partPlacementService = new PartPlacementService(db);
   partVersionService = new PartVersionService(db);
   songTakeService = new SongTakeService(db);
+  soundPresetService = new SoundPresetService(db);
 
   registerIPCHandlers();
 
@@ -457,6 +462,17 @@ function registerIPCHandlers() {
       options
     )
   );
+  // Picks a song's sound-alike reference track. Returns the absolute path (stored on the
+  // song as-is; the file is read at generation time) or null if cancelled.
+  ipcMain.handle('music:browseReferenceAudio', async () => {
+    if (!mainWindow) return null;
+    const result = await dialog.showOpenDialog(mainWindow, {
+      title: 'Choose a reference track',
+      properties: ['openFile'],
+      filters: [{ name: 'Audio', extensions: ['mp3', 'wav', 'flac', 'ogg', 'opus', 'm4a', 'aac'] }],
+    });
+    return result.canceled ? null : result.filePaths[0];
+  });
   ipcMain.handle('music:getActive', (_, songId: string) => getActiveGeneration(songId));
   ipcMain.handle('music:getTakes', (_, songId: string) => songTakeService.getTakesBySong(songId));
   ipcMain.handle('music:getTakeAudio', (_, takeId: string) => getTakeAudio({ songTakeService }, takeId));
@@ -464,6 +480,16 @@ function registerIPCHandlers() {
     deleteTake({ songTakeService }, takeId);
     return { success: true };
   });
+
+  // Sound preset handlers
+  ipcMain.handle('presets:getAll', () => soundPresetService.getAll());
+  ipcMain.handle('presets:create', (_, input: CreateSoundPresetInput) => soundPresetService.create(input));
+  ipcMain.handle('presets:delete', (_, id: string) => {
+    soundPresetService.delete(id);
+    return { success: true };
+  });
+  // takes:* (star / rename / notes / export / bulk) -- see ai/takesIpc.ts
+  registerTakesIpc({ songService, songTakeService, getWindow: () => mainWindow });
 
   ipcMain.handle('ai:getLog', () => getAiLog());
   ipcMain.handle('ai:clearLog', () => {

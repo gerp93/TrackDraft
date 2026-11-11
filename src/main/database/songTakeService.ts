@@ -1,6 +1,6 @@
 import { Database } from 'sql.js';
 import { v4 as uuidv4 } from 'uuid';
-import { SongTake } from '../../shared/types/songTake';
+import { SongTake, SongTakePatch } from '../../shared/types/songTake';
 import { saveDatabase } from './schema';
 
 const SELECT_COLUMNS = `
@@ -11,6 +11,10 @@ const SELECT_COLUMNS = `
   lyrics,
   duration_seconds as durationSeconds,
   model,
+  seed,
+  favorite,
+  name,
+  notes,
   created_at as createdAt
 `;
 
@@ -27,6 +31,10 @@ function rowToTake(columns: string[], row: any[]): SongTake {
     lyrics: obj.lyrics ?? '',
     durationSeconds: obj.durationSeconds ?? null,
     model: obj.model ?? null,
+    seed: obj.seed ?? null,
+    favorite: !!obj.favorite,
+    name: obj.name ?? null,
+    notes: obj.notes ?? '',
     createdAt: obj.createdAt,
   };
 }
@@ -39,6 +47,7 @@ export interface CreateSongTakeInput {
   lyrics: string;
   durationSeconds: number | null;
   model: string | null;
+  seed?: string | null;
 }
 
 export class SongTakeService {
@@ -68,12 +77,40 @@ export class SongTakeService {
     const id = uuidv4();
     const now = new Date().toISOString();
     this.db.run(
-      `INSERT INTO song_takes (id, song_id, file_name, prompt, lyrics, duration_seconds, model, created_at)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
-      [id, input.songId, `${id}.${input.extension}`, input.prompt, input.lyrics, input.durationSeconds, input.model, now]
+      `INSERT INTO song_takes (id, song_id, file_name, prompt, lyrics, duration_seconds, model, seed, created_at)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      [id, input.songId, `${id}.${input.extension}`, input.prompt, input.lyrics, input.durationSeconds, input.model, input.seed ?? null, now]
     );
     saveDatabase(this.db);
     return this.getTakeById(id)!;
+  }
+
+  updateTake(id: string, patch: SongTakePatch): SongTake | null {
+    const sets: string[] = [];
+    const values: (string | number | null)[] = [];
+    if (patch.favorite !== undefined) {
+      sets.push('favorite = ?');
+      values.push(patch.favorite ? 1 : 0);
+    }
+    if (patch.name !== undefined) {
+      sets.push('name = ?');
+      values.push(patch.name?.trim() ? patch.name.trim() : null);
+    }
+    if (patch.notes !== undefined) {
+      sets.push('notes = ?');
+      values.push(patch.notes);
+    }
+    if (sets.length > 0) {
+      this.db.run(`UPDATE song_takes SET ${sets.join(', ')} WHERE id = ?`, [...values, id]);
+      saveDatabase(this.db);
+    }
+    return this.getTakeById(id);
+  }
+
+  /** One save for the whole batch, instead of one per take. */
+  setFavorite(ids: string[], favorite: boolean): void {
+    for (const id of ids) this.db.run(`UPDATE song_takes SET favorite = ? WHERE id = ?`, [favorite ? 1 : 0, id]);
+    saveDatabase(this.db);
   }
 
   deleteTake(id: string): void {

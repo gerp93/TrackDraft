@@ -9,6 +9,7 @@ import PartEditor from '../components/PartEditor';
 import InsertPartBar from '../components/InsertPartBar';
 import LiveSongPanel from '../components/LiveSongPanel';
 import { AudioBar, AudioPanel, useSongAudio } from '../components/SongAudio';
+import { useCurrentLyrics } from '../utils/useCurrentLyrics';
 
 export default function SongDetail() {
   const { songId } = useParams<{ songId: string }>();
@@ -27,6 +28,7 @@ export default function SongDetail() {
   const audioBarRef = useRef<HTMLDivElement | null>(null);
   const soundInputRef = useRef<HTMLTextAreaElement>(null);
   const audio = useSongAudio(songId ?? '', styleNotesDraft, handleStyleNotesBlur);
+  const currentLyrics = useCurrentLyrics(songId ?? '', placements, parts);
 
   // The slide-out audio panel is position:fixed, so it has to be told where the page
   // area starts (below the top bar) and where the docked player bar begins -- both
@@ -149,6 +151,11 @@ export default function SongDetail() {
     if (songId) await load(songId);
   }
 
+  async function handleChangeDirection(partId: string, direction: string) {
+    await window.electronAPI.parts.update(partId, { direction });
+    if (songId) await load(songId);
+  }
+
   async function handleDeletePlacement(placementId: string) {
     if (!songId) return;
     if (!confirm('Remove this part from the song? If it appears nowhere else, its content is deleted too.')) return;
@@ -261,6 +268,9 @@ export default function SongDetail() {
                     onRename={(newLabel) => handleRenamePart(part.id, newLabel)}
                     onDelete={() => handleDeletePlacement(placement.id)}
                     onToggleNoLyrics={() => handleToggleNoLyrics(part.id, part.noLyrics)}
+                    direction={part.direction}
+                    placementCount={placements.filter((p) => p.partId === part.id).length}
+                    onChangeDirection={(d) => handleChangeDirection(part.id, d)}
                   >
                     <PartEditor
                       part={part}
@@ -301,6 +311,7 @@ export default function SongDetail() {
             vocalGender={song.vocalGender}
             onVocalGenderChange={handleVocalGenderChange}
             soundInputRef={soundInputRef}
+            currentLyrics={currentLyrics}
           />
         )}
       </div>

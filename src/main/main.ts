@@ -264,6 +264,7 @@ function registerIPCHandlers() {
   ipcMain.handle('songs:getById', (_, id: string) => songService.getSongById(id));
   ipcMain.handle('songs:create', (_, input: CreateSongInput) => songService.createSong(input));
   ipcMain.handle('songs:update', (_, id: string, input: UpdateSongInput) => songService.updateSong(id, input));
+  ipcMain.handle('songs:setHidden', (_, id: string, hidden: boolean) => songService.setSongHidden(id, hidden));
   ipcMain.handle('songs:delete', (_, id: string) => {
     deleteTakesForSong({ songTakeService }, id);
     songService.deleteSong(id);

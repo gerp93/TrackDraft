@@ -77,6 +77,12 @@ export async function initDatabase(dbPath?: string): Promise<Database> {
   } catch (e) {
     // already exists
   }
+  // Migration: songs created before the privacy-screen (hide from song list) flag existed.
+  try {
+    db.run(`ALTER TABLE songs ADD COLUMN is_hidden INTEGER NOT NULL DEFAULT 0`);
+  } catch (e) {
+    // already exists
+  }
 
   db.run(`
     CREATE TABLE IF NOT EXISTS part_placements (

@@ -8,8 +8,9 @@ with code in this repository.
 TrackDraft is an Electron desktop app: a lyric-writing notepad where songs
 are made of individually editable, versionable parts (verse, chorus,
 bridge, etc.), with an optional AI assist (Claude API or local Ollama) for
-rhyme-scheme suggestions and rewrites. Data is stored locally in a
-`sql.js`-backed SQLite file.
+rhyme-scheme suggestions and rewrites, and optional song audio generation
+through a local [ACE-Step 1.5](https://github.com/ace-step/ACE-Step-1.5) API
+server. Data is stored locally in a `sql.js`-backed SQLite file.
 
 ## Commands
 
@@ -25,7 +26,9 @@ npm run package      # electron-builder, produces installers in release/
 - `src/main/` — Electron main process: `main.ts` (window, IPC handlers,
   auto-updater wiring), `database/` (sql.js schema + per-entity services),
   `dbLocation.ts` (relocatable SQLite file), `ai/` (Claude/Ollama providers
-  behind a shared `aiService`).
+  behind a shared `aiService`; `aceStepProvider` + `songGeneration` for
+  audio "takes", whose files live in `userData/takes/`, not beside the
+  database -- only their metadata is in SQLite).
 - `src/renderer/` — React UI (Vite), `pages/` for routed screens,
   `components/` for the song/part editor pieces, `utils/themes.ts` for the
   VisualAssault theme switcher.

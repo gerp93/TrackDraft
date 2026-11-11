@@ -8,6 +8,7 @@ import PartHeader from '../components/PartHeader';
 import PartEditor from '../components/PartEditor';
 import InsertPartBar from '../components/InsertPartBar';
 import LiveSongPanel from '../components/LiveSongPanel';
+import SongAudioPanel from '../components/SongAudioPanel';
 
 export default function SongDetail() {
   const { songId } = useParams<{ songId: string }>();
@@ -17,7 +18,7 @@ export default function SongDetail() {
   const [titleDraft, setTitleDraft] = useState('');
   const [justAddedPlacementId, setJustAddedPlacementId] = useState<string | null>(null);
   const [deletingPlacementId, setDeletingPlacementId] = useState<string | null>(null);
-  const [activeTab, setActiveTab] = useState<'parts' | 'notes'>('parts');
+  const [activeTab, setActiveTab] = useState<'parts' | 'notes' | 'audio'>('parts');
   const [styleNotesDraft, setStyleNotesDraft] = useState('');
   const [notesDraft, setNotesDraft] = useState('');
   const partRefs = useRef<Record<string, HTMLDivElement | null>>({});
@@ -160,7 +161,22 @@ export default function SongDetail() {
         >
           Notes
         </button>
+        <button
+          className={`song-tab-btn${activeTab === 'audio' ? ' active' : ''}`}
+          onClick={() => setActiveTab('audio')}
+        >
+          Audio
+        </button>
       </div>
+
+      {activeTab === 'audio' && songId && (
+        <SongAudioPanel
+          songId={songId}
+          styleNotes={styleNotesDraft}
+          onStyleNotesChange={setStyleNotesDraft}
+          onStyleNotesCommit={handleStyleNotesBlur}
+        />
+      )}
 
       {activeTab === 'notes' && (
         <div style={{ display: 'flex', flexDirection: 'column', gap: 16, maxWidth: 720 }}>

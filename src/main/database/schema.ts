@@ -110,6 +110,23 @@ export async function initDatabase(dbPath?: string): Promise<Database> {
       ON part_versions(part_id) WHERE is_active = 1
   `);
 
+  // Generated audio renditions of a song. Only metadata lives here -- the audio file is
+  // in this device's app-data folder (see ai/takeStorage.ts), keyed by file_name.
+  db.run(`
+    CREATE TABLE IF NOT EXISTS song_takes (
+      id TEXT PRIMARY KEY,
+      song_id TEXT NOT NULL,
+      file_name TEXT NOT NULL,
+      prompt TEXT NOT NULL DEFAULT '',
+      lyrics TEXT NOT NULL DEFAULT '',
+      duration_seconds REAL,
+      model TEXT,
+      created_at TEXT NOT NULL,
+      FOREIGN KEY (song_id) REFERENCES songs(id) ON DELETE CASCADE
+    )
+  `);
+  db.run(`CREATE INDEX IF NOT EXISTS idx_song_takes_song ON song_takes(song_id)`);
+
   db.run(`CREATE INDEX IF NOT EXISTS idx_parts_song ON parts(song_id)`);
   db.run(`CREATE INDEX IF NOT EXISTS idx_part_versions_part ON part_versions(part_id)`);
   db.run(`CREATE INDEX IF NOT EXISTS idx_placements_song ON part_placements(song_id)`);

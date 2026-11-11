@@ -16,11 +16,13 @@ import { SongService } from './database/songService';
 import { PartService } from './database/partService';
 import { PartPlacementService } from './database/partPlacementService';
 import { PartVersionService } from './database/partVersionService';
+import { SongTakeService } from './database/songTakeService';
 import { CreateSongInput, UpdateSongInput } from '../shared/types/song';
 import { CreatePartInput, UpdatePartInput } from '../shared/types/part';
 import { CreatePlacementInput } from '../shared/types/partPlacement';
 import { CreatePartVersionInput } from '../shared/types/partVersion';
 import { AiSettings } from '../shared/types/ai';
+import { GenerateSongOptions } from '../shared/types/songTake';
 import { Database } from 'sql.js';
 import {
   clearClaudeApiKey,
@@ -32,6 +34,14 @@ import {
 import { listOllamaModels } from './ai/ollamaProvider';
 import { assist, reorderForRhymeScheme, suggestRhymeScheme, testConnection } from './ai/aiService';
 import { clearAiLog, getAiLog } from './ai/aiLog';
+import {
+  deleteTake,
+  deleteTakesForSong,
+  generateSong,
+  getActiveGeneration,
+  getTakeAudio,
+  testMusicConnection,
+} from './ai/songGeneration';
 import { setupApplicationMenu, attachContextMenu } from './menu';
 
 pinUserDataPath();
@@ -73,6 +83,7 @@ let songService: SongService;
 let partService: PartService;
 let partPlacementService: PartPlacementService;
 let partVersionService: PartVersionService;
+let songTakeService: SongTakeService;
 
 function createWindow() {
   mainWindow = new BrowserWindow({
@@ -211,6 +222,7 @@ app.whenReady().then(async () => {
   partService = new PartService(db);
   partPlacementService = new PartPlacementService(db);
   partVersionService = new PartVersionService(db);
+  songTakeService = new SongTakeService(db);
 
   registerIPCHandlers();
 
@@ -242,6 +254,7 @@ function registerIPCHandlers() {
   ipcMain.handle('songs:create', (_, input: CreateSongInput) => songService.createSong(input));
   ipcMain.handle('songs:update', (_, id: string, input: UpdateSongInput) => songService.updateSong(id, input));
   ipcMain.handle('songs:delete', (_, id: string) => {
+    deleteTakesForSong({ songTakeService }, id);
     songService.deleteSong(id);
     return { success: true };
   });
@@ -371,6 +384,23 @@ function registerIPCHandlers() {
     (_, songId: string, partId: string, instruction: string, rhymeScheme?: string | null) =>
       assist({ partPlacementService, partService, partVersionService }, songId, partId, instruction, rhymeScheme)
   );
+  // Music (song audio generation) handlers
+  ipcMain.handle('music:testConnection', () => testMusicConnection());
+  ipcMain.handle('music:generate', (_, songId: string, options?: GenerateSongOptions) =>
+    generateSong(
+      { songService, partPlacementService, partService, partVersionService, songTakeService },
+      songId,
+      options
+    )
+  );
+  ipcMain.handle('music:getActive', (_, songId: string) => getActiveGeneration(songId));
+  ipcMain.handle('music:getTakes', (_, songId: string) => songTakeService.getTakesBySong(songId));
+  ipcMain.handle('music:getTakeAudio', (_, takeId: string) => getTakeAudio({ songTakeService }, takeId));
+  ipcMain.handle('music:deleteTake', (_, takeId: string) => {
+    deleteTake({ songTakeService }, takeId);
+    return { success: true };
+  });
+
   ipcMain.handle('ai:getLog', () => getAiLog());
   ipcMain.handle('ai:clearLog', () => {
     clearAiLog();

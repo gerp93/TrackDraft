@@ -3,6 +3,7 @@ import { Part, CreatePartInput, UpdatePartInput } from '../shared/types/part';
 import { PartPlacement, CreatePlacementInput } from '../shared/types/partPlacement';
 import { PartVersion, CreatePartVersionInput } from '../shared/types/partVersion';
 import { AiLogEntry, AiSettings, AiSettingsWithKeyFlag, AiTestConnectionResult } from '../shared/types/ai';
+import { GenerateSongOptions, SongGenerationStatus, SongTake } from '../shared/types/songTake';
 
 declare global {
   interface Window {
@@ -73,6 +74,14 @@ declare global {
         ) => Promise<{ lines: string[] }>;
         getLog: () => Promise<AiLogEntry[]>;
         clearLog: () => Promise<{ success: boolean }>;
+      };
+      music: {
+        testConnection: () => Promise<AiTestConnectionResult>;
+        generate: (songId: string, options?: GenerateSongOptions) => Promise<SongTake[]>;
+        getActive: (songId: string) => Promise<SongGenerationStatus | null>;
+        getTakes: (songId: string) => Promise<SongTake[]>;
+        getTakeAudio: (takeId: string) => Promise<Uint8Array | null>;
+        deleteTake: (takeId: string) => Promise<{ success: boolean }>;
       };
     };
   }

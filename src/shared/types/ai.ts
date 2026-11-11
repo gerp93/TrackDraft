@@ -8,6 +8,9 @@ export interface AiSettings {
   claudeModel: string;
   ollamaModel: string;
   ollamaBaseUrl: string;
+  /** Local ACE-Step API server used to generate audio for a song. Independent of
+   * `provider`, which only picks the text model for lyric help. */
+  aceStepBaseUrl: string;
 }
 
 export interface AiSettingsWithKeyFlag extends AiSettings {

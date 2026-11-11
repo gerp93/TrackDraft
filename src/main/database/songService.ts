@@ -12,6 +12,7 @@ function rowToSong(columns: string[], row: any[]): Song {
     id: obj.id,
     title: obj.title,
     styleNotes: obj.styleNotes ?? '',
+    vocalGender: obj.vocalGender === 'female' || obj.vocalGender === 'male' ? obj.vocalGender : '',
     notes: obj.notes ?? '',
     createdAt: obj.createdAt,
     updatedAt: obj.updatedAt,
@@ -22,6 +23,7 @@ const SELECT_COLUMNS = `
   id,
   title,
   style_notes as styleNotes,
+  vocal_gender as vocalGender,
   notes,
   created_at as createdAt,
   updated_at as updatedAt
@@ -78,6 +80,11 @@ export class SongService {
     if (input.styleNotes !== undefined) {
       updates.push('style_notes = ?');
       params.push(input.styleNotes);
+    }
+
+    if (input.vocalGender !== undefined) {
+      updates.push('vocal_gender = ?');
+      params.push(input.vocalGender);
     }
 
     if (input.notes !== undefined) {

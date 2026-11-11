@@ -66,6 +66,12 @@ export async function initDatabase(dbPath?: string): Promise<Database> {
   } catch (e) {
     // already exists
   }
+  // Migration: songs created before the singing-voice choice existed.
+  try {
+    db.run(`ALTER TABLE songs ADD COLUMN vocal_gender TEXT NOT NULL DEFAULT ''`);
+  } catch (e) {
+    // already exists
+  }
   try {
     db.run(`ALTER TABLE songs ADD COLUMN notes TEXT NOT NULL DEFAULT ''`);
   } catch (e) {

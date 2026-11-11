@@ -8,6 +8,9 @@ export interface Song {
   styleNotes: string;
   vocalGender: VocalGender;
   notes: string;
+  /** Privacy screen only (not encryption): hidden songs are left out of the song list
+   * until the topbar eye toggle reveals them. */
+  isHidden: boolean;
   createdAt: string;
   updatedAt: string;
 }

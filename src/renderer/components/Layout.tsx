@@ -1,6 +1,8 @@
 import { ReactNode } from 'react';
 import { NavLink } from 'react-router-dom';
 import { useAiSettings } from '../context/AiSettingsContext';
+import { usePrivacy } from '../context/PrivacyContext';
+import EyeIcon from './EyeIcon';
 import './Layout.css';
 
 const NAV_ITEMS = [
@@ -11,6 +13,7 @@ const NAV_ITEMS = [
 
 export default function Layout({ children }: { children: ReactNode }) {
   const { aiEnabled } = useAiSettings();
+  const { showHidden, setShowHidden } = usePrivacy();
   const visibleNavItems = NAV_ITEMS.filter((item) => !item.requiresAi || aiEnabled);
 
   return (
@@ -29,6 +32,17 @@ export default function Layout({ children }: { children: ReactNode }) {
             </li>
           ))}
         </ul>
+        <span className="topbar-spacer" />
+        <button
+          type="button"
+          className={`privacy-toggle${showHidden ? ' active' : ''}`}
+          title={showHidden ? 'Hide hidden songs' : 'Show hidden songs'}
+          aria-label={showHidden ? 'Hide hidden songs' : 'Show hidden songs'}
+          aria-pressed={showHidden}
+          onClick={() => setShowHidden(!showHidden)}
+        >
+          <EyeIcon open={showHidden} />
+        </button>
       </nav>
       <main className="main-content">{children}</main>
     </div>

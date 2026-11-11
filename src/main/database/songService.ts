@@ -14,6 +14,7 @@ function rowToSong(columns: string[], row: any[]): Song {
     styleNotes: obj.styleNotes ?? '',
     vocalGender: obj.vocalGender === 'female' || obj.vocalGender === 'male' ? obj.vocalGender : '',
     notes: obj.notes ?? '',
+    isHidden: obj.isHidden === 1,
     createdAt: obj.createdAt,
     updatedAt: obj.updatedAt,
   };
@@ -25,6 +26,7 @@ const SELECT_COLUMNS = `
   style_notes as styleNotes,
   vocal_gender as vocalGender,
   notes,
+  is_hidden as isHidden,
   created_at as createdAt,
   updated_at as updatedAt
 `;
@@ -100,6 +102,15 @@ export class SongService {
     saveDatabase(this.db);
 
     return this.getSongById(id)!;
+  }
+
+  /** Doesn't bump updated_at: hiding a song isn't an edit to it. */
+  setSongHidden(id: string, hidden: boolean): Song {
+    this.db.run(`UPDATE songs SET is_hidden = ? WHERE id = ?`, [hidden ? 1 : 0, id]);
+    saveDatabase(this.db);
+    const song = this.getSongById(id);
+    if (!song) throw new Error(`Song with id ${id} not found`);
+    return song;
   }
 
   deleteSong(id: string): void {

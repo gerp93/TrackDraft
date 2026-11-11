@@ -33,7 +33,7 @@ export interface AceStepPollResult {
 
 function friendlyUnreachableError(baseUrl: string, cause: unknown): Error {
   const detail = cause instanceof Error ? cause.message : String(cause);
-  return new Error(`Couldn't reach ACE-Step at ${baseUrl} -- is its API server running? (${detail})`);
+  return new Error(`Couldn't reach ACE-Step at ${baseUrl} -- is its API server running? Start it from the Audio tab or Settings. (${detail})`);
 }
 
 async function request<T>(baseUrl: string, path: string, init?: RequestInit): Promise<T> {

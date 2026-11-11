@@ -3,6 +3,7 @@ import { useTheme } from '../context/ThemeContext';
 import { useAiSettings } from '../context/AiSettingsContext';
 import { THEME_LABELS } from '../utils/themes';
 import { AiProvider, AiSettingsWithKeyFlag } from '../../shared/types/ai';
+import AceStepServerControl from '../components/AceStepServerControl';
 
 const CLAUDE_MODELS = ['claude-opus-5', 'claude-sonnet-5', 'claude-haiku-4-5'];
 
@@ -41,6 +42,7 @@ export default function Settings() {
   const [aiBusy, setAiBusy] = useState(false);
   const [musicTestResult, setMusicTestResult] = useState<{ ok: boolean; message: string } | null>(null);
   const [musicTesting, setMusicTesting] = useState(false);
+  const [aceStepDirWarning, setAceStepDirWarning] = useState<string | null>(null);
 
   useEffect(() => {
     window.electronAPI.dbLocation.get().then(setDbLocation);
@@ -128,6 +130,23 @@ export default function Settings() {
     if (!aiSettings || !baseUrl || baseUrl === aiSettings.aceStepBaseUrl) return;
     setMusicTestResult(null);
     await window.electronAPI.ai.setSettings({ aceStepBaseUrl: baseUrl.replace(/\/+$/, '') });
+    await refreshAiSettings();
+  }
+
+  async function handleAceStepDirBlur(dir: string) {
+    if (!aiSettings || dir === aiSettings.aceStepDir) return;
+    setAceStepDirWarning(null);
+    await window.electronAPI.ai.setSettings({ aceStepDir: dir });
+    await refreshAiSettings();
+  }
+
+  async function handleBrowseAceStepDir() {
+    const picked = await window.electronAPI.music.browseServerDir();
+    if (!picked) return;
+    setAceStepDirWarning(
+      picked.looksValid ? null : 'That folder has no "acestep" folder inside -- it may not be an ACE-Step install.'
+    );
+    await window.electronAPI.ai.setSettings({ aceStepDir: picked.path });
     await refreshAiSettings();
   }
 
@@ -375,9 +394,29 @@ export default function Settings() {
             <h3 style={{ fontSize: 13, margin: '20px 0 4px' }}>Song audio (ACE-Step)</h3>
             <p className="text-muted" style={{ marginTop: 0, fontSize: 12 }}>
               A song's Audio tab sends its lyrics and style to a local ACE-Step API server, which generates the
-              music on your own GPU. Start the server (start_api_server.bat in your ACE-Step folder) before
-              generating.
+              music on your own GPU. Set the folder ACE-Step is installed in and TrackDraft starts the server
+              for you when you generate (and stops it when you quit); leave it blank to run the server yourself.
             </p>
+            <div className="field">
+              <label>ACE-Step Folder</label>
+              <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>
+                <input
+                  defaultValue={aiSettings.aceStepDir}
+                  key={aiSettings.aceStepDir}
+                  onBlur={(e) => handleAceStepDirBlur(e.target.value.trim())}
+                  placeholder="e.g. D:\ACE-Step-1.5"
+                  style={{ maxWidth: 300, fontFamily: 'monospace', fontSize: 12 }}
+                />
+                <button className="btn" onClick={handleBrowseAceStepDir}>
+                  Browse…
+                </button>
+              </div>
+              {aceStepDirWarning && (
+                <span style={{ color: 'var(--color-accent-red)', fontSize: 12, marginTop: 4 }}>
+                  {aceStepDirWarning}
+                </span>
+              )}
+            </div>
             <div className="field">
               <label>ACE-Step URL</label>
               <input
@@ -388,6 +427,12 @@ export default function Settings() {
               />
             </div>
             <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginTop: 4 }}>
+              <AceStepServerControl
+                refreshKey={`${aiSettings.aceStepDir}|${aiSettings.aceStepBaseUrl}`}
+                noFolderHint="Set the folder above to start it from here."
+              />
+            </div>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginTop: 10 }}>
               <button className="btn" disabled={musicTesting} onClick={handleTestMusicConnection}>
                 {musicTesting ? 'Testing…' : 'Test ACE-Step'}
               </button>

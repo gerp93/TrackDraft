@@ -3,7 +3,7 @@ import { Part, CreatePartInput, UpdatePartInput } from '../shared/types/part';
 import { PartPlacement, CreatePlacementInput } from '../shared/types/partPlacement';
 import { PartVersion, CreatePartVersionInput } from '../shared/types/partVersion';
 import { AiLogEntry, AiSettings, AiSettingsWithKeyFlag, AiTestConnectionResult } from '../shared/types/ai';
-import { GenerateSongOptions, SongGenerationStatus, SongTake } from '../shared/types/songTake';
+import { AceStepServerStatus, GenerateSongOptions, SongGenerationStatus, SongTake } from '../shared/types/songTake';
 
 declare global {
   interface Window {
@@ -78,6 +78,10 @@ declare global {
       };
       music: {
         testConnection: () => Promise<AiTestConnectionResult>;
+        serverStatus: () => Promise<AceStepServerStatus>;
+        startServer: () => Promise<AceStepServerStatus>;
+        stopServer: () => Promise<AceStepServerStatus>;
+        browseServerDir: () => Promise<{ path: string; looksValid: boolean } | null>;
         generate: (songId: string, options?: GenerateSongOptions) => Promise<SongTake[]>;
         getActive: (songId: string) => Promise<SongGenerationStatus | null>;
         getTakes: (songId: string) => Promise<SongTake[]>;

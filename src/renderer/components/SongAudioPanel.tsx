@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { SongGenerationStatus, SongTake } from '../../shared/types/songTake';
 import { useAiSettings } from '../context/AiSettingsContext';
+import AceStepServerControl from './AceStepServerControl';
 
 interface Props {
   songId: string;
@@ -181,6 +182,17 @@ export default function SongAudioPanel({ songId, styleNotes, onStyleNotesChange,
           </span>
         )}
       </div>
+
+      {aiEnabled && (
+        <AceStepServerControl
+          refreshKey={generating}
+          noFolderHint={
+            <>
+              Set the ACE-Step folder in <Link to="/settings">Settings</Link> to start it from here.
+            </>
+          }
+        />
+      )}
 
       {!aiEnabled && (
         <p className="text-muted" style={{ fontSize: 13, margin: 0 }}>

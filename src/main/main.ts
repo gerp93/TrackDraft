@@ -42,6 +42,12 @@ import {
   getTakeAudio,
   testMusicConnection,
 } from './ai/songGeneration';
+import {
+  ensureAceStepServer,
+  getAceStepServerStatus,
+  looksLikeAceStepDir,
+  stopAceStepServer,
+} from './ai/aceStepServer';
 import { setupApplicationMenu, attachContextMenu } from './menu';
 
 pinUserDataPath();
@@ -238,6 +244,11 @@ app.whenReady().then(async () => {
   });
 });
 
+// A server this app started holds several GB of VRAM; don't leave it behind.
+app.on('will-quit', () => {
+  stopAceStepServer();
+});
+
 app.on('window-all-closed', () => {
   if (db) {
     saveDatabase(db);
@@ -407,6 +418,25 @@ function registerIPCHandlers() {
   );
   // Music (song audio generation) handlers
   ipcMain.handle('music:testConnection', () => testMusicConnection());
+  ipcMain.handle('music:serverStatus', () => getAceStepServerStatus());
+  ipcMain.handle('music:startServer', async () => {
+    await ensureAceStepServer();
+    return getAceStepServerStatus();
+  });
+  ipcMain.handle('music:stopServer', () => {
+    stopAceStepServer();
+    return getAceStepServerStatus();
+  });
+  ipcMain.handle('music:browseServerDir', async () => {
+    if (!mainWindow) return null;
+    const result = await dialog.showOpenDialog(mainWindow, {
+      title: 'Choose your ACE-Step folder',
+      properties: ['openDirectory'],
+    });
+    if (result.canceled) return null;
+    const dir = result.filePaths[0];
+    return { path: dir, looksValid: looksLikeAceStepDir(dir) };
+  });
   ipcMain.handle('music:generate', (_, songId: string, options?: GenerateSongOptions) =>
     generateSong(
       { songService, partPlacementService, partService, partVersionService, songTakeService },

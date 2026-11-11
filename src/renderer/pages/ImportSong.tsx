@@ -24,6 +24,7 @@ function previewLabels(sections: ImportedSection[]): string[] {
       partType: s.partType,
       customLabel: s.customLabel,
       noLyrics: s.noLyrics,
+      direction: '',
       createdAt: '',
       updatedAt: '',
     });

@@ -99,7 +99,11 @@ export async function aceStepSubmit(baseUrl: string, input: AceStepTaskInput): P
     // Let the server's language model plan the arrangement (and fill in tempo/key/length
     // the user didn't specify). Ignored by servers started without the LM, and skipped by
     // the server for the cover task, which works from the source audio instead.
-    thinking: true,
+    // Off when a seed is being reused: the planning step is unseeded on the server (see
+    // below), so leaving it on would make the seed meaningless -- every "same seed" take
+    // would be unrelated to the last. With it off, the same seed and inputs give the
+    // same audio, and a small lyric change gives a closely related take.
+    thinking: !input.seed,
     // The server's default is 2 variations per request; one take per click keeps the
     // wait short and the takes list in the user's hands.
     batch_size: 1,
@@ -112,8 +116,11 @@ export async function aceStepSubmit(baseUrl: string, input: AceStepTaskInput): P
     // Sent as text: the server accepts a string seed, and a JSON number would lose
     // precision on seeds above 2^53. The seed fixes the diffusion (DiT) stage only: the
     // server's default vllm LM backend ignores seeds when planning (thinking), so with
-    // thinking on the same seed does NOT reproduce a take. Covers skip the LM and come
-    // out near-identical; text2music with thinking off is bit-identical.
+    // thinking on the same seed does NOT reproduce a take -- hence thinking is off for
+    // seeded runs (above). Consequence: reusing the seed of a take that was made WITH
+    // planning does not recreate that take; it starts a reproducible line from that seed.
+    // Covers skip the LM and come out near-identical; text2music with thinking off is
+    // bit-identical.
     body.use_random_seed = false;
     body.seed = input.seed;
   }

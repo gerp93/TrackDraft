@@ -130,12 +130,19 @@ export async function generateSong(
       status.stage = 'queued';
     }
 
+    // A seeded run skips the server's planning step (see aceStepProvider), which is also
+    // what would have chosen a length. Without one asked for, keep the length of the take
+    // the seed came from so "same seed" doesn't quietly become a different-length song.
+    const seedSourceDuration = options.seed
+      ? services.songTakeService.getTakesBySong(songId).find((t) => t.seed === options.seed)?.durationSeconds ?? null
+      : null;
+
     const taskId = await aceStepSubmit(baseUrl, {
       prompt,
       lyrics,
       // A restyle keeps the source take's length; asking for another one would cut or
       // pad it rather than restyle it.
-      durationSeconds: cover ? null : options.durationSeconds,
+      durationSeconds: cover ? null : options.durationSeconds ?? seedSourceDuration,
       seed: options.seed ?? null,
       bpm: song.bpm,
       keyScale: song.keyScale || null,

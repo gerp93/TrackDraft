@@ -844,3 +844,55 @@ textarea {
   font-size: 12px;
   margin: 0 0 6px;
 }
+
+/* ---- Generation inputs ---- */
+
+/* Tempo / key / time signature / reference track / restyle strength, below the
+   Voice + Length row in the audio panel (GenerationInputs.tsx). */
+.gen-inputs {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin-top: 10px;
+  font-size: 13px;
+}
+
+.gen-inputs-row {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px 16px;
+}
+
+.gen-input {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+}
+
+.gen-input select {
+  width: auto;
+}
+
+.gen-input-bpm {
+  width: 68px;
+}
+
+.gen-reference-name {
+  flex: 1 1 120px;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.gen-btn {
+  padding: 2px 10px;
+  font-size: 12px;
+}
+
+.gen-inputs-error {
+  color: var(--color-accent-red);
+  font-size: 13px;
+  margin: 0;
+}

@@ -15,6 +15,11 @@ function rowToSong(columns: string[], row: any[]): Song {
     vocalGender: obj.vocalGender === 'female' || obj.vocalGender === 'male' ? obj.vocalGender : '',
     notes: obj.notes ?? '',
     isHidden: obj.isHidden === 1,
+    bpm: typeof obj.bpm === 'number' ? obj.bpm : null,
+    keyScale: obj.keyScale ?? '',
+    timeSignature: obj.timeSignature ?? '',
+    referenceAudioPath: obj.referenceAudioPath ?? '',
+    coverStrength: typeof obj.coverStrength === 'number' ? obj.coverStrength : null,
     createdAt: obj.createdAt,
     updatedAt: obj.updatedAt,
   };
@@ -27,6 +32,11 @@ const SELECT_COLUMNS = `
   vocal_gender as vocalGender,
   notes,
   is_hidden as isHidden,
+  bpm,
+  key_scale as keyScale,
+  time_signature as timeSignature,
+  reference_audio_path as referenceAudioPath,
+  cover_strength as coverStrength,
   created_at as createdAt,
   updated_at as updatedAt
 `;
@@ -92,6 +102,31 @@ export class SongService {
     if (input.notes !== undefined) {
       updates.push('notes = ?');
       params.push(input.notes);
+    }
+
+    if (input.bpm !== undefined) {
+      updates.push('bpm = ?');
+      params.push(input.bpm);
+    }
+
+    if (input.keyScale !== undefined) {
+      updates.push('key_scale = ?');
+      params.push(input.keyScale);
+    }
+
+    if (input.timeSignature !== undefined) {
+      updates.push('time_signature = ?');
+      params.push(input.timeSignature);
+    }
+
+    if (input.referenceAudioPath !== undefined) {
+      updates.push('reference_audio_path = ?');
+      params.push(input.referenceAudioPath);
+    }
+
+    if (input.coverStrength !== undefined) {
+      updates.push('cover_strength = ?');
+      params.push(input.coverStrength);
     }
 
     updates.push('updated_at = ?');

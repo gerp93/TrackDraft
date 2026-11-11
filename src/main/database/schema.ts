@@ -90,6 +90,33 @@ export async function initDatabase(dbPath?: string): Promise<Database> {
   } catch (e) {
     // already exists
   }
+  // Migration: songs created before the generation inputs (tempo, key, time signature,
+  // reference track) existed. NULL / '' mean "let the music model decide".
+  try {
+    db.run(`ALTER TABLE songs ADD COLUMN bpm INTEGER`);
+  } catch (e) {
+    // already exists
+  }
+  try {
+    db.run(`ALTER TABLE songs ADD COLUMN key_scale TEXT NOT NULL DEFAULT ''`);
+  } catch (e) {
+    // already exists
+  }
+  try {
+    db.run(`ALTER TABLE songs ADD COLUMN time_signature TEXT NOT NULL DEFAULT ''`);
+  } catch (e) {
+    // already exists
+  }
+  try {
+    db.run(`ALTER TABLE songs ADD COLUMN reference_audio_path TEXT NOT NULL DEFAULT ''`);
+  } catch (e) {
+    // already exists
+  }
+  try {
+    db.run(`ALTER TABLE songs ADD COLUMN cover_strength REAL`);
+  } catch (e) {
+    // already exists
+  }
 
   db.run(`
     CREATE TABLE IF NOT EXISTS part_placements (

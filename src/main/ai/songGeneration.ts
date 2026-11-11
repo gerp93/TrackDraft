@@ -1,3 +1,5 @@
+import * as fs from 'fs';
+import * as path from 'path';
 import { PartPlacementService } from '../database/partPlacementService';
 import { PartService } from '../database/partService';
 import { PartVersionService } from '../database/partVersionService';
@@ -6,8 +8,16 @@ import { SongTakeService } from '../database/songTakeService';
 import { AiTestConnectionResult } from '../../shared/types/ai';
 import { GenerateSongOptions, SongGenerationStatus, SongTake } from '../../shared/types/songTake';
 import { buildMusicLyrics } from '../../shared/utils/musicLyrics';
+import { DEFAULT_COVER_STRENGTH } from '../../shared/types/song';
 import { getAiSettings } from './aiConfig';
-import { aceStepDownload, aceStepHealth, aceStepPoll, aceStepSubmit } from './aceStepProvider';
+import {
+  AceStepAudioUpload,
+  AceStepTaskInput,
+  aceStepDownload,
+  aceStepHealth,
+  aceStepPoll,
+  aceStepSubmit,
+} from './aceStepProvider';
 import { ensureAceStepServer, getAceStepServerStatus } from './aceStepServer';
 import { deleteTakeFile, readTakeFile, writeTakeFile } from './takeStorage';
 
@@ -38,6 +48,18 @@ export async function testMusicConnection(): Promise<AiTestConnectionResult> {
     return { ok: true, message: 'ACE-Step reachable.' };
   } catch (err) {
     return { ok: false, message: err instanceof Error ? err.message : String(err) };
+  }
+}
+
+/** The song's reference track, read from wherever the user picked it. It's a path on
+ * this device (not a copy), so it can go missing if the file is moved or deleted. */
+function readReferenceTrack(filePath: string): AceStepAudioUpload {
+  try {
+    return { fileName: path.basename(filePath), data: fs.readFileSync(filePath) };
+  } catch {
+    throw new Error(
+      `The reference track "${path.basename(filePath)}" can't be read (moved or deleted?). Choose it again or clear it under Sound.`
+    );
   }
 }
 
@@ -72,6 +94,23 @@ export async function generateSong(
   const hasWords = lyrics.split('\n').some((line) => line.trim() && !/^\[.+\]$/.test(line.trim()));
   const prompt = song.vocalGender && hasWords ? `${sound}, ${song.vocalGender} vocals` : sound;
 
+  // Files are read up front so a missing one fails before anything is queued.
+  const referenceAudio = song.referenceAudioPath ? readReferenceTrack(song.referenceAudioPath) : null;
+  let cover: AceStepTaskInput['cover'] = null;
+  // The server reports no metas (not even duration) for a cover; it keeps the source's length.
+  let coverSourceDuration: number | null = null;
+  if (options.coverOfTakeId) {
+    const sourceTake = services.songTakeService.getTakeById(options.coverOfTakeId);
+    if (!sourceTake || sourceTake.songId !== songId) throw new Error('The take to restyle no longer exists.');
+    const data = readTakeFile(sourceTake.fileName);
+    if (!data) throw new Error("The take to restyle has no audio file on this device, so it can't be restyled.");
+    cover = {
+      source: { fileName: sourceTake.fileName, data },
+      strength: song.coverStrength ?? DEFAULT_COVER_STRENGTH,
+    };
+    coverSourceDuration = sourceTake.durationSeconds;
+  }
+
   const baseUrl = settings.aceStepBaseUrl;
   const status: SongGenerationStatus = {
     songId,
@@ -91,7 +130,19 @@ export async function generateSong(
       status.stage = 'queued';
     }
 
-    const taskId = await aceStepSubmit(baseUrl, { prompt, lyrics, durationSeconds: options.durationSeconds });
+    const taskId = await aceStepSubmit(baseUrl, {
+      prompt,
+      lyrics,
+      // A restyle keeps the source take's length; asking for another one would cut or
+      // pad it rather than restyle it.
+      durationSeconds: cover ? null : options.durationSeconds,
+      seed: options.seed ?? null,
+      bpm: song.bpm,
+      keyScale: song.keyScale || null,
+      timeSignature: song.timeSignature || null,
+      referenceAudio,
+      cover,
+    });
 
     const deadline = Date.now() + MAX_WAIT_MS;
     for (;;) {
@@ -111,8 +162,9 @@ export async function generateSong(
             extension: extension.toLowerCase(),
             prompt,
             lyrics,
-            durationSeconds: result.durationSeconds,
+            durationSeconds: result.durationSeconds ?? coverSourceDuration,
             model: result.model,
+            seed: result.seed,
           });
           try {
             writeTakeFile(take.fileName, audio);

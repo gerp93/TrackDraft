@@ -1,6 +1,7 @@
 import { VocalGender } from '../../shared/types/song';
 import type { SongAudioState } from './SongAudio';
 import SoundPresetPicker from './SoundPresetPicker';
+import GenerationInputs from './GenerationInputs';
 
 const VOICE_OPTIONS: { value: VocalGender; label: string }[] = [
   { value: '', label: 'Auto' },
@@ -91,6 +92,8 @@ export default function SoundSettings({
           min
         </label>
       </div>
+
+      <GenerationInputs songId={songId} disabled={generating} />
     </>
   );
 }

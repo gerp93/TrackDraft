@@ -93,6 +93,7 @@ declare global {
         stopServer: () => Promise<AceStepServerStatus>;
         browseServerDir: () => Promise<{ path: string; looksValid: boolean } | null>;
         generate: (songId: string, options?: GenerateSongOptions) => Promise<SongTake[]>;
+        browseReferenceAudio: () => Promise<string | null>;
         getActive: (songId: string) => Promise<SongGenerationStatus | null>;
         getTakes: (songId: string) => Promise<SongTake[]>;
         getTakeAudio: (takeId: string) => Promise<Uint8Array | null>;

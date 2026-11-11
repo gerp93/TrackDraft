@@ -457,6 +457,17 @@ function registerIPCHandlers() {
       options
     )
   );
+  // Picks a song's sound-alike reference track. Returns the absolute path (stored on the
+  // song as-is; the file is read at generation time) or null if cancelled.
+  ipcMain.handle('music:browseReferenceAudio', async () => {
+    if (!mainWindow) return null;
+    const result = await dialog.showOpenDialog(mainWindow, {
+      title: 'Choose a reference track',
+      properties: ['openFile'],
+      filters: [{ name: 'Audio', extensions: ['mp3', 'wav', 'flac', 'ogg', 'opus', 'm4a', 'aac'] }],
+    });
+    return result.canceled ? null : result.filePaths[0];
+  });
   ipcMain.handle('music:getActive', (_, songId: string) => getActiveGeneration(songId));
   ipcMain.handle('music:getTakes', (_, songId: string) => songTakeService.getTakesBySong(songId));
   ipcMain.handle('music:getTakeAudio', (_, takeId: string) => getTakeAudio({ songTakeService }, takeId));

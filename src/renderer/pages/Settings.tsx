@@ -29,6 +29,8 @@ export default function Settings() {
   const [aiTestResult, setAiTestResult] = useState<{ ok: boolean; message: string } | null>(null);
   const [aiTesting, setAiTesting] = useState(false);
   const [aiBusy, setAiBusy] = useState(false);
+  const [musicTestResult, setMusicTestResult] = useState<{ ok: boolean; message: string } | null>(null);
+  const [musicTesting, setMusicTesting] = useState(false);
 
   useEffect(() => {
     window.electronAPI.dbLocation.get().then(setDbLocation);
@@ -110,6 +112,21 @@ export default function Settings() {
     const result = await window.electronAPI.ai.testConnection();
     setAiTestResult(result);
     setAiTesting(false);
+  }
+
+  async function handleAceStepBaseUrlBlur(baseUrl: string) {
+    if (!aiSettings || !baseUrl || baseUrl === aiSettings.aceStepBaseUrl) return;
+    setMusicTestResult(null);
+    await window.electronAPI.ai.setSettings({ aceStepBaseUrl: baseUrl.replace(/\/+$/, '') });
+    await refreshAiSettings();
+  }
+
+  async function handleTestMusicConnection() {
+    setMusicTesting(true);
+    setMusicTestResult(null);
+    const result = await window.electronAPI.music.testConnection();
+    setMusicTestResult(result);
+    setMusicTesting(false);
   }
 
   async function handleCheckForUpdates() {
@@ -228,8 +245,8 @@ export default function Settings() {
             </label>
             {!aiSettings.aiEnabled && (
               <p className="text-muted" style={{ fontSize: 12, marginTop: 4, marginBottom: 0 }}>
-                Off -- TrackDraft never contacts Ollama or Claude. Turn this on to use Ask AI or AI-assisted
-                Autoformat.
+                Off -- TrackDraft never contacts Ollama, Claude or ACE-Step. Turn this on to use Ask AI, AI-assisted
+                Autoformat, or song audio generation.
               </p>
             )}
             {aiSettings.aiEnabled && (
@@ -341,6 +358,37 @@ export default function Settings() {
                   }}
                 >
                   {aiTestResult.message}
+                </span>
+              )}
+            </div>
+
+            <h3 style={{ fontSize: 13, margin: '20px 0 4px' }}>Song audio (ACE-Step)</h3>
+            <p className="text-muted" style={{ marginTop: 0, fontSize: 12 }}>
+              A song's Audio tab sends its lyrics and style to a local ACE-Step API server, which generates the
+              music on your own GPU. Start the server (start_api_server.bat in your ACE-Step folder) before
+              generating.
+            </p>
+            <div className="field">
+              <label>ACE-Step URL</label>
+              <input
+                defaultValue={aiSettings.aceStepBaseUrl}
+                key={aiSettings.aceStepBaseUrl}
+                onBlur={(e) => handleAceStepBaseUrlBlur(e.target.value.trim())}
+                style={{ maxWidth: 300 }}
+              />
+            </div>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginTop: 4 }}>
+              <button className="btn" disabled={musicTesting} onClick={handleTestMusicConnection}>
+                {musicTesting ? 'Testing…' : 'Test ACE-Step'}
+              </button>
+              {musicTestResult && (
+                <span
+                  style={{
+                    fontSize: 13,
+                    color: musicTestResult.ok ? 'var(--color-accent-green)' : 'var(--color-accent-red)',
+                  }}
+                >
+                  {musicTestResult.message}
                 </span>
               )}
             </div>

@@ -4,6 +4,7 @@ import { CreatePartInput, UpdatePartInput } from '../shared/types/part';
 import { CreatePlacementInput } from '../shared/types/partPlacement';
 import { CreatePartVersionInput } from '../shared/types/partVersion';
 import { AiSettings } from '../shared/types/ai';
+import { GenerateSongOptions } from '../shared/types/songTake';
 
 contextBridge.exposeInMainWorld('electronAPI', {
   songs: {
@@ -75,5 +76,14 @@ contextBridge.exposeInMainWorld('electronAPI', {
       ipcRenderer.invoke('ai:assist', songId, partId, instruction, rhymeScheme),
     getLog: () => ipcRenderer.invoke('ai:getLog'),
     clearLog: () => ipcRenderer.invoke('ai:clearLog'),
+  },
+
+  music: {
+    testConnection: () => ipcRenderer.invoke('music:testConnection'),
+    generate: (songId: string, options?: GenerateSongOptions) => ipcRenderer.invoke('music:generate', songId, options),
+    getActive: (songId: string) => ipcRenderer.invoke('music:getActive', songId),
+    getTakes: (songId: string) => ipcRenderer.invoke('music:getTakes', songId),
+    getTakeAudio: (takeId: string) => ipcRenderer.invoke('music:getTakeAudio', takeId),
+    deleteTake: (takeId: string) => ipcRenderer.invoke('music:deleteTake', takeId),
   },
 });

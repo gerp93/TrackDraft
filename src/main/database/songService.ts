@@ -102,6 +102,7 @@ export class SongService {
     this.db.run(`DELETE FROM part_versions WHERE part_id IN (SELECT id FROM parts WHERE song_id = ?)`, [id]);
     this.db.run(`DELETE FROM part_placements WHERE song_id = ?`, [id]);
     this.db.run(`DELETE FROM parts WHERE song_id = ?`, [id]);
+    this.db.run(`DELETE FROM song_takes WHERE song_id = ?`, [id]);
     this.db.run(`DELETE FROM songs WHERE id = ?`, [id]);
     saveDatabase(this.db);
   }

@@ -41,11 +41,12 @@ declare global {
         delete: (id: string) => Promise<{ success: boolean }>;
       };
       dbLocation: {
-        get: () => Promise<{ path: string; isDefault: boolean; defaultPath: string }>;
+        get: () => Promise<{ path: string; isDefault: boolean; defaultPath: string; sizeBytes: number | null }>;
         browseExisting: () => Promise<string | null>;
         browseNew: () => Promise<string | null>;
         set: (newPath: string) => Promise<{ success: boolean }>;
         resetToDefault: () => Promise<{ success: boolean }>;
+        showInFolder: () => Promise<{ success: boolean }>;
       };
       app: {
         getVersion: () => Promise<string>;

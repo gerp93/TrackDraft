@@ -12,12 +12,20 @@ export interface SongTake {
   /** Length the model reported, in seconds; null if it didn't say. */
   durationSeconds: number | null;
   model: string | null;
+  /** The random seed the model used, when it reported one -- lets a take be regenerated
+   * with the same starting point. */
+  seed: string | null;
   createdAt: string;
 }
 
 export interface GenerateSongOptions {
   /** Target length in seconds; null/undefined lets the model pick. */
   durationSeconds?: number | null;
+  /** Use this exact seed instead of a random one (see SongTake.seed). */
+  seed?: string | null;
+  /** Restyle an existing take: keep its melody and structure, apply the song's current
+   * sound settings (ACE-Step's "cover" task). The id of the take to use as the source. */
+  coverOfTakeId?: string | null;
 }
 
 /** State of the local ACE-Step server, as far as this app can tell. */

@@ -11,6 +11,7 @@ const SELECT_COLUMNS = `
   lyrics,
   duration_seconds as durationSeconds,
   model,
+  seed,
   created_at as createdAt
 `;
 
@@ -27,6 +28,7 @@ function rowToTake(columns: string[], row: any[]): SongTake {
     lyrics: obj.lyrics ?? '',
     durationSeconds: obj.durationSeconds ?? null,
     model: obj.model ?? null,
+    seed: obj.seed ?? null,
     createdAt: obj.createdAt,
   };
 }
@@ -39,6 +41,7 @@ export interface CreateSongTakeInput {
   lyrics: string;
   durationSeconds: number | null;
   model: string | null;
+  seed?: string | null;
 }
 
 export class SongTakeService {
@@ -68,9 +71,9 @@ export class SongTakeService {
     const id = uuidv4();
     const now = new Date().toISOString();
     this.db.run(
-      `INSERT INTO song_takes (id, song_id, file_name, prompt, lyrics, duration_seconds, model, created_at)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
-      [id, input.songId, `${id}.${input.extension}`, input.prompt, input.lyrics, input.durationSeconds, input.model, now]
+      `INSERT INTO song_takes (id, song_id, file_name, prompt, lyrics, duration_seconds, model, seed, created_at)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      [id, input.songId, `${id}.${input.extension}`, input.prompt, input.lyrics, input.durationSeconds, input.model, input.seed ?? null, now]
     );
     saveDatabase(this.db);
     return this.getTakeById(id)!;

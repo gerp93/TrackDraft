@@ -139,6 +139,13 @@ export async function initDatabase(dbPath?: string): Promise<Database> {
   `);
   db.run(`CREATE INDEX IF NOT EXISTS idx_song_takes_song ON song_takes(song_id)`);
 
+  // Migration: takes created before the model's seed was recorded.
+  try {
+    db.run(`ALTER TABLE song_takes ADD COLUMN seed TEXT`);
+  } catch (e) {
+    // already exists
+  }
+
   db.run(`CREATE INDEX IF NOT EXISTS idx_parts_song ON parts(song_id)`);
   db.run(`CREATE INDEX IF NOT EXISTS idx_part_versions_part ON part_versions(part_id)`);
   db.run(`CREATE INDEX IF NOT EXISTS idx_placements_song ON part_placements(song_id)`);

@@ -23,7 +23,6 @@ export function initDatabase(dbPath: string): DatabaseSync {
 
   const db = new DatabaseSync(dbPath);
   try {
-    db.exec('PRAGMA journal_mode = WAL');
     // Enforced for real now (sql.js's build never did): deleting a parent cascades to its
     // children, and inserting a child with a missing parent is refused.
     db.exec('PRAGMA foreign_keys = ON');
@@ -36,6 +35,10 @@ export function initDatabase(dbPath: string): DatabaseSync {
       verifySqlJsMigration(db, plan);
       db.exec(`PRAGMA user_version = ${NODE_SQLITE_USER_VERSION}`);
     });
+    // Only after that commit: the WAL header is itself read as "already migrated" by
+    // prepareSqlJsMigration, so switching earlier would make a rolled-back attempt look done
+    // and the next launch would skip the retry (and the backup check) it is promised.
+    db.exec('PRAGMA journal_mode = WAL');
   } catch (err) {
     try {
       db.close();

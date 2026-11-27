@@ -209,3 +209,28 @@ test('a row-count mismatch after the schema steps throws, rolls back and leaves 
     db.close();
   }
 });
+
+test('a migration that fails part-way leaves the file as it was, so the next launch retries it', () => {
+  createOldSqlJsDatabase(dbFile);
+  // A table where the schema wants to create an index makes the schema step throw inside the
+  // migration's transaction.
+  const setup = new DatabaseSync(dbFile);
+  setup.exec('CREATE TABLE idx_parts_song (x INTEGER)');
+  setup.close();
+  const before = snapshot(dbFile);
+
+  assert.throws(() => initDatabase(dbFile));
+
+  // Still a rollback-journal file with user_version 0 (not switched to WAL), same rows.
+  const header = fs.readFileSync(dbFile).subarray(0, 100);
+  assert.notEqual(header[18], 2);
+  const check = new DatabaseSync(dbFile, { readOnly: true });
+  assert.equal(Number(scalar(check, 'PRAGMA user_version')), 0);
+  check.close();
+  assert.deepEqual(snapshot(dbFile), before);
+
+  // The next launch sees it as still pending (reusing the verified backup), not as done.
+  const plan = prepareSqlJsMigration(dbFile);
+  assert.equal(plan.status, 'pending');
+  if (plan.status === 'pending') assert.equal(plan.backupPath, sqlJsBackupPath(dbFile));
+});

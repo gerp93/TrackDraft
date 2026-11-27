@@ -1,14 +1,10 @@
-import { Database } from 'sql.js';
+import { DatabaseSync } from 'node:sqlite';
 import { Part, CreatePartInput, UpdatePartInput } from '../../shared/types/part';
 import { v4 as uuidv4 } from 'uuid';
-import { saveDatabase } from './schema';
+import { transaction } from './schema';
 import { sanitizeDirection } from '../../shared/utils/partDirection';
 
-function rowToPart(columns: string[], row: any[]): Part {
-  const obj: any = {};
-  columns.forEach((col, idx) => {
-    obj[col] = row[idx];
-  });
+function rowToPart(obj: Record<string, any>): Part {
   return {
     id: obj.id,
     songId: obj.songId,
@@ -33,25 +29,16 @@ const SELECT_COLUMNS = `
 `;
 
 export class PartService {
-  constructor(private db: Database) {}
+  constructor(private db: DatabaseSync) {}
 
   getPartsBySong(songId: string): Part[] {
-    const stmt = this.db.prepare(`SELECT ${SELECT_COLUMNS} FROM parts WHERE song_id = ?`);
-    stmt.bind([songId]);
-    const parts: Part[] = [];
-    while (stmt.step()) {
-      parts.push(rowToPart(stmt.getColumnNames(), stmt.get()));
-    }
-    stmt.free();
-    return parts;
+    const rows = this.db.prepare(`SELECT ${SELECT_COLUMNS} FROM parts WHERE song_id = ?`).all(songId);
+    return rows.map((row) => rowToPart(row));
   }
 
   getPartById(id: string): Part | null {
-    const stmt = this.db.prepare(`SELECT ${SELECT_COLUMNS} FROM parts WHERE id = ?`);
-    stmt.bind([id]);
-    const part = stmt.step() ? rowToPart(stmt.getColumnNames(), stmt.get()) : null;
-    stmt.free();
-    return part;
+    const row = this.db.prepare(`SELECT ${SELECT_COLUMNS} FROM parts WHERE id = ?`).get(id);
+    return row ? rowToPart(row) : null;
   }
 
   createPart(input: CreatePartInput): Part {
@@ -59,12 +46,11 @@ export class PartService {
     const now = new Date().toISOString();
     const label = input.partType === 'custom' ? input.customLabel?.trim() || 'Untitled' : '';
 
-    this.db.run(
-      `INSERT INTO parts (id, song_id, part_type, label, no_lyrics, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?)`,
-      [id, input.songId, input.partType, label, input.noLyrics ? 1 : 0, now, now]
-    );
-
-    saveDatabase(this.db);
+    this.db
+      .prepare(
+        `INSERT INTO parts (id, song_id, part_type, label, no_lyrics, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?)`
+      )
+      .run(id, input.songId, input.partType, label, input.noLyrics ? 1 : 0, now, now);
 
     return this.getPartById(id)!;
   }
@@ -77,40 +63,40 @@ export class PartService {
 
     const now = new Date().toISOString();
 
-    // customLabel is only meaningful for custom-type parts -- preset types compute their
-    // label from part_type.
-    if (input.customLabel !== undefined) {
-      const label = input.customLabel?.trim() || 'Untitled';
-      this.db.run(`UPDATE parts SET label = ?, updated_at = ? WHERE id = ?`, [label, now, id]);
-    }
+    transaction(this.db, () => {
+      // customLabel is only meaningful for custom-type parts -- preset types compute their
+      // label from part_type.
+      if (input.customLabel !== undefined) {
+        const label = input.customLabel?.trim() || 'Untitled';
+        this.db.prepare(`UPDATE parts SET label = ?, updated_at = ? WHERE id = ?`).run(label, now, id);
+      }
 
-    if (input.noLyrics !== undefined) {
-      this.db.run(`UPDATE parts SET no_lyrics = ?, updated_at = ? WHERE id = ?`, [
-        input.noLyrics ? 1 : 0,
-        now,
-        id,
-      ]);
-    }
+      if (input.noLyrics !== undefined) {
+        this.db.prepare(`UPDATE parts SET no_lyrics = ?, updated_at = ? WHERE id = ?`).run(
+          input.noLyrics ? 1 : 0,
+          now,
+          id
+        );
+      }
 
-    if (input.direction !== undefined) {
-      this.db.run(`UPDATE parts SET direction = ?, updated_at = ? WHERE id = ?`, [
-        sanitizeDirection(input.direction),
-        now,
-        id,
-      ]);
-    }
-
-    saveDatabase(this.db);
+      if (input.direction !== undefined) {
+        this.db.prepare(`UPDATE parts SET direction = ?, updated_at = ? WHERE id = ?`).run(
+          sanitizeDirection(input.direction),
+          now,
+          id
+        );
+      }
+    });
 
     return this.getPartById(id)!;
   }
 
   deletePart(id: string): void {
-    // See songService.deleteSong -- sql.js doesn't enforce ON DELETE CASCADE, so children
-    // are cleaned up explicitly.
-    this.db.run(`DELETE FROM part_versions WHERE part_id = ?`, [id]);
-    this.db.run(`DELETE FROM part_placements WHERE part_id = ?`, [id]);
-    this.db.run(`DELETE FROM parts WHERE id = ?`, [id]);
-    saveDatabase(this.db);
+    // See songService.deleteSong -- children are deleted explicitly, in one transaction.
+    transaction(this.db, () => {
+      this.db.prepare(`DELETE FROM part_versions WHERE part_id = ?`).run(id);
+      this.db.prepare(`DELETE FROM part_placements WHERE part_id = ?`).run(id);
+      this.db.prepare(`DELETE FROM parts WHERE id = ?`).run(id);
+    });
   }
 }

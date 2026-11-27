@@ -1,13 +1,9 @@
-import { Database } from 'sql.js';
+import { DatabaseSync } from 'node:sqlite';
 import { Song, CreateSongInput, UpdateSongInput } from '../../shared/types/song';
 import { v4 as uuidv4 } from 'uuid';
-import { saveDatabase } from './schema';
+import { transaction } from './schema';
 
-function rowToSong(columns: string[], row: any[]): Song {
-  const obj: any = {};
-  columns.forEach((col, idx) => {
-    obj[col] = row[idx];
-  });
+function rowToSong(obj: Record<string, any>): Song {
   return {
     id: obj.id,
     title: obj.title,
@@ -42,34 +38,28 @@ const SELECT_COLUMNS = `
 `;
 
 export class SongService {
-  constructor(private db: Database) {}
+  constructor(private db: DatabaseSync) {}
 
   getAllSongs(): Song[] {
-    const results = this.db.exec(`SELECT ${SELECT_COLUMNS} FROM songs ORDER BY title COLLATE NOCASE`);
-    if (results.length === 0) return [];
-    return results[0].values.map((row) => rowToSong(results[0].columns, row));
+    const rows = this.db.prepare(`SELECT ${SELECT_COLUMNS} FROM songs ORDER BY title COLLATE NOCASE`).all();
+    return rows.map((row) => rowToSong(row));
   }
 
   getSongById(id: string): Song | null {
-    const stmt = this.db.prepare(`SELECT ${SELECT_COLUMNS} FROM songs WHERE id = ?`);
-    stmt.bind([id]);
-    const song = stmt.step() ? rowToSong(stmt.getColumnNames(), stmt.get()) : null;
-    stmt.free();
-    return song;
+    const row = this.db.prepare(`SELECT ${SELECT_COLUMNS} FROM songs WHERE id = ?`).get(id);
+    return row ? rowToSong(row) : null;
   }
 
   createSong(input: CreateSongInput): Song {
     const id = uuidv4();
     const now = new Date().toISOString();
 
-    this.db.run(`INSERT INTO songs (id, title, created_at, updated_at) VALUES (?, ?, ?, ?)`, [
+    this.db.prepare(`INSERT INTO songs (id, title, created_at, updated_at) VALUES (?, ?, ?, ?)`).run(
       id,
       input.title,
       now,
-      now,
-    ]);
-
-    saveDatabase(this.db);
+      now
+    );
 
     return this.getSongById(id)!;
   }
@@ -82,7 +72,7 @@ export class SongService {
 
     const now = new Date().toISOString();
     const updates: string[] = [];
-    const params: any[] = [];
+    const params: (string | number | null)[] = [];
 
     if (input.title !== undefined) {
       updates.push('title = ?');
@@ -133,30 +123,28 @@ export class SongService {
     params.push(now);
     params.push(id);
 
-    this.db.run(`UPDATE songs SET ${updates.join(', ')} WHERE id = ?`, params);
-    saveDatabase(this.db);
+    this.db.prepare(`UPDATE songs SET ${updates.join(', ')} WHERE id = ?`).run(...params);
 
     return this.getSongById(id)!;
   }
 
   /** Doesn't bump updated_at: hiding a song isn't an edit to it. */
   setSongHidden(id: string, hidden: boolean): Song {
-    this.db.run(`UPDATE songs SET is_hidden = ? WHERE id = ?`, [hidden ? 1 : 0, id]);
-    saveDatabase(this.db);
+    this.db.prepare(`UPDATE songs SET is_hidden = ? WHERE id = ?`).run(hidden ? 1 : 0, id);
     const song = this.getSongById(id);
     if (!song) throw new Error(`Song with id ${id} not found`);
     return song;
   }
 
   deleteSong(id: string): void {
-    // sql.js's SQLite build doesn't actually enforce "PRAGMA foreign_keys = ON" (it reports
-    // 0/off regardless), so ON DELETE CASCADE never fires -- clean up children explicitly,
-    // child tables first.
-    this.db.run(`DELETE FROM part_versions WHERE part_id IN (SELECT id FROM parts WHERE song_id = ?)`, [id]);
-    this.db.run(`DELETE FROM part_placements WHERE song_id = ?`, [id]);
-    this.db.run(`DELETE FROM parts WHERE song_id = ?`, [id]);
-    this.db.run(`DELETE FROM song_takes WHERE song_id = ?`, [id]);
-    this.db.run(`DELETE FROM songs WHERE id = ?`, [id]);
-    saveDatabase(this.db);
+    // ON DELETE CASCADE would do this now that foreign keys are enforced, but children are
+    // still deleted explicitly, child tables first, in one transaction so it is all or nothing.
+    transaction(this.db, () => {
+      this.db.prepare(`DELETE FROM part_versions WHERE part_id IN (SELECT id FROM parts WHERE song_id = ?)`).run(id);
+      this.db.prepare(`DELETE FROM part_placements WHERE song_id = ?`).run(id);
+      this.db.prepare(`DELETE FROM parts WHERE song_id = ?`).run(id);
+      this.db.prepare(`DELETE FROM song_takes WHERE song_id = ?`).run(id);
+      this.db.prepare(`DELETE FROM songs WHERE id = ?`).run(id);
+    });
   }
 }

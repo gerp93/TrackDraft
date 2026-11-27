@@ -1,7 +1,7 @@
-import { Database } from 'sql.js';
+import { DatabaseSync } from 'node:sqlite';
 import { v4 as uuidv4 } from 'uuid';
 import { SongTake, SongTakePatch } from '../../shared/types/songTake';
-import { saveDatabase } from './schema';
+import { transaction } from './schema';
 
 const SELECT_COLUMNS = `
   id,
@@ -18,11 +18,7 @@ const SELECT_COLUMNS = `
   created_at as createdAt
 `;
 
-function rowToTake(columns: string[], row: any[]): SongTake {
-  const obj: any = {};
-  columns.forEach((col, idx) => {
-    obj[col] = row[idx];
-  });
+function rowToTake(obj: Record<string, any>): SongTake {
   return {
     id: obj.id,
     songId: obj.songId,
@@ -51,37 +47,40 @@ export interface CreateSongTakeInput {
 }
 
 export class SongTakeService {
-  constructor(private db: Database) {}
+  constructor(private db: DatabaseSync) {}
 
   getTakesBySong(songId: string): SongTake[] {
-    const stmt = this.db.prepare(
-      `SELECT ${SELECT_COLUMNS} FROM song_takes WHERE song_id = ? ORDER BY created_at DESC`
-    );
-    stmt.bind([songId]);
-    const takes: SongTake[] = [];
-    while (stmt.step()) takes.push(rowToTake(stmt.getColumnNames(), stmt.get()));
-    stmt.free();
-    return takes;
+    const rows = this.db
+      .prepare(`SELECT ${SELECT_COLUMNS} FROM song_takes WHERE song_id = ? ORDER BY created_at DESC`)
+      .all(songId);
+    return rows.map((row) => rowToTake(row));
   }
 
   getTakeById(id: string): SongTake | null {
-    const stmt = this.db.prepare(`SELECT ${SELECT_COLUMNS} FROM song_takes WHERE id = ?`);
-    stmt.bind([id]);
-    const take = stmt.step() ? rowToTake(stmt.getColumnNames(), stmt.get()) : null;
-    stmt.free();
-    return take;
+    const row = this.db.prepare(`SELECT ${SELECT_COLUMNS} FROM song_takes WHERE id = ?`).get(id);
+    return row ? rowToTake(row) : null;
   }
 
   /** Reserves an id + file name; the caller writes the audio file before/after as it sees fit. */
   createTake(input: CreateSongTakeInput): SongTake {
     const id = uuidv4();
     const now = new Date().toISOString();
-    this.db.run(
-      `INSERT INTO song_takes (id, song_id, file_name, prompt, lyrics, duration_seconds, model, seed, created_at)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-      [id, input.songId, `${id}.${input.extension}`, input.prompt, input.lyrics, input.durationSeconds, input.model, input.seed ?? null, now]
-    );
-    saveDatabase(this.db);
+    this.db
+      .prepare(
+        `INSERT INTO song_takes (id, song_id, file_name, prompt, lyrics, duration_seconds, model, seed, created_at)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`
+      )
+      .run(
+        id,
+        input.songId,
+        `${id}.${input.extension}`,
+        input.prompt,
+        input.lyrics,
+        input.durationSeconds ?? null,
+        input.model ?? null,
+        input.seed ?? null,
+        now
+      );
     return this.getTakeById(id)!;
   }
 
@@ -101,20 +100,20 @@ export class SongTakeService {
       values.push(patch.notes);
     }
     if (sets.length > 0) {
-      this.db.run(`UPDATE song_takes SET ${sets.join(', ')} WHERE id = ?`, [...values, id]);
-      saveDatabase(this.db);
+      this.db.prepare(`UPDATE song_takes SET ${sets.join(', ')} WHERE id = ?`).run(...values, id);
     }
     return this.getTakeById(id);
   }
 
-  /** One save for the whole batch, instead of one per take. */
+  /** One transaction for the whole batch, so it is all or nothing. */
   setFavorite(ids: string[], favorite: boolean): void {
-    for (const id of ids) this.db.run(`UPDATE song_takes SET favorite = ? WHERE id = ?`, [favorite ? 1 : 0, id]);
-    saveDatabase(this.db);
+    transaction(this.db, () => {
+      const update = this.db.prepare(`UPDATE song_takes SET favorite = ? WHERE id = ?`);
+      for (const id of ids) update.run(favorite ? 1 : 0, id);
+    });
   }
 
   deleteTake(id: string): void {
-    this.db.run(`DELETE FROM song_takes WHERE id = ?`, [id]);
-    saveDatabase(this.db);
+    this.db.prepare(`DELETE FROM song_takes WHERE id = ?`).run(id);
   }
 }

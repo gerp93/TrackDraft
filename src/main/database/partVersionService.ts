@@ -1,13 +1,9 @@
-import { Database } from 'sql.js';
+import { DatabaseSync } from 'node:sqlite';
 import { PartVersion, CreatePartVersionInput } from '../../shared/types/partVersion';
 import { v4 as uuidv4 } from 'uuid';
-import { saveDatabase } from './schema';
+import { transaction } from './schema';
 
-function rowToPartVersion(columns: string[], row: any[]): PartVersion {
-  const obj: any = {};
-  columns.forEach((col, idx) => {
-    obj[col] = row[idx];
-  });
+function rowToPartVersion(obj: Record<string, any>): PartVersion {
   return {
     id: obj.id,
     partId: obj.partId,
@@ -32,18 +28,13 @@ const SELECT_COLUMNS = `
 `;
 
 export class PartVersionService {
-  constructor(private db: Database) {}
+  constructor(private db: DatabaseSync) {}
 
   getVersionsByPart(partId: string): PartVersion[] {
-    const stmt = this.db.prepare(
-      `SELECT ${SELECT_COLUMNS} FROM part_versions WHERE part_id = ? ORDER BY version_number`
-    );
-    stmt.bind([partId]);
-    const versions: PartVersion[] = [];
-    while (stmt.step()) {
-      versions.push(rowToPartVersion(stmt.getColumnNames(), stmt.get()));
-    }
-    stmt.free();
+    const rows = this.db
+      .prepare(`SELECT ${SELECT_COLUMNS} FROM part_versions WHERE part_id = ? ORDER BY version_number`)
+      .all(partId);
+    const versions = rows.map((row) => rowToPartVersion(row));
     return this.ensureLatestIsActive(partId, versions);
   }
 
@@ -55,35 +46,33 @@ export class PartVersionService {
     if (latest.isActive) return versions;
 
     const now = new Date().toISOString();
-    this.db.run(`UPDATE part_versions SET is_active = 0, updated_at = ? WHERE part_id = ? AND is_active = 1`, [
-      now,
-      partId,
-    ]);
-    this.db.run(`UPDATE part_versions SET is_active = 1, updated_at = ? WHERE id = ?`, [now, latest.id]);
-    saveDatabase(this.db);
+    transaction(this.db, () => {
+      this.db
+        .prepare(`UPDATE part_versions SET is_active = 0, updated_at = ? WHERE part_id = ? AND is_active = 1`)
+        .run(now, partId);
+      this.db.prepare(`UPDATE part_versions SET is_active = 1, updated_at = ? WHERE id = ?`).run(now, latest.id);
+    });
 
     return versions.map((v) => ({ ...v, isActive: v.id === latest.id }));
   }
 
   getVersionById(id: string): PartVersion | null {
-    const stmt = this.db.prepare(`SELECT ${SELECT_COLUMNS} FROM part_versions WHERE id = ?`);
-    stmt.bind([id]);
-    const version = stmt.step() ? rowToPartVersion(stmt.getColumnNames(), stmt.get()) : null;
-    stmt.free();
-    return version;
+    const row = this.db.prepare(`SELECT ${SELECT_COLUMNS} FROM part_versions WHERE id = ?`).get(id);
+    return row ? rowToPartVersion(row) : null;
   }
 
   getActiveVersionForPart(partId: string): PartVersion | null {
-    const stmt = this.db.prepare(`SELECT ${SELECT_COLUMNS} FROM part_versions WHERE part_id = ? AND is_active = 1`);
-    stmt.bind([partId]);
-    const version = stmt.step() ? rowToPartVersion(stmt.getColumnNames(), stmt.get()) : null;
-    stmt.free();
-    return version;
+    const row = this.db
+      .prepare(`SELECT ${SELECT_COLUMNS} FROM part_versions WHERE part_id = ? AND is_active = 1`)
+      .get(partId);
+    return row ? rowToPartVersion(row) : null;
   }
 
   /** One PartVersion per part in the song -- the shape a future AI-context assembler needs. */
   getActiveVersionsForSong(songId: string): PartVersion[] {
-    const stmt = this.db.prepare(`
+    const rows = this.db
+      .prepare(
+        `
       SELECT pv.id, pv.part_id as partId, pv.version_number as versionNumber, pv.lines,
              pv.rhyme_scheme as rhymeScheme, pv.is_active as isActive,
              pv.created_at as createdAt, pv.updated_at as updatedAt
@@ -91,20 +80,18 @@ export class PartVersionService {
       JOIN parts p ON p.id = pv.part_id
       WHERE p.song_id = ? AND pv.is_active = 1
       ORDER BY p.created_at
-    `);
-    stmt.bind([songId]);
-    const versions: PartVersion[] = [];
-    while (stmt.step()) {
-      versions.push(rowToPartVersion(stmt.getColumnNames(), stmt.get()));
-    }
-    stmt.free();
-    return versions;
+    `
+      )
+      .all(songId);
+    return rows.map((row) => rowToPartVersion(row));
   }
 
   /** One PartVersion per part in the song -- whichever has the highest version_number,
    * i.e. the one currently editable. Used for the live full-song preview. */
   getLatestVersionsForSong(songId: string): PartVersion[] {
-    const stmt = this.db.prepare(`
+    const rows = this.db
+      .prepare(
+        `
       SELECT pv.id, pv.part_id as partId, pv.version_number as versionNumber, pv.lines,
              pv.rhyme_scheme as rhymeScheme, pv.is_active as isActive,
              pv.created_at as createdAt, pv.updated_at as updatedAt
@@ -112,18 +99,18 @@ export class PartVersionService {
       JOIN parts p ON p.id = pv.part_id
       WHERE p.song_id = ?
       ORDER BY pv.part_id, pv.version_number DESC
-    `);
-    stmt.bind([songId]);
+    `
+      )
+      .all(songId);
     const seenPartIds = new Set<string>();
     const versions: PartVersion[] = [];
-    while (stmt.step()) {
-      const version = rowToPartVersion(stmt.getColumnNames(), stmt.get());
+    for (const row of rows) {
+      const version = rowToPartVersion(row);
       if (!seenPartIds.has(version.partId)) {
         seenPartIds.add(version.partId);
         versions.push(version);
       }
     }
-    stmt.free();
     return versions;
   }
 
@@ -135,10 +122,12 @@ export class PartVersionService {
     const nextVersionNumber = existing.length === 0 ? 1 : Math.max(...existing.map((v) => v.versionNumber)) + 1;
     const isFirst = existing.length === 0;
 
-    this.db.run(
-      `INSERT INTO part_versions (id, part_id, version_number, lines, rhyme_scheme, is_active, created_at, updated_at)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
-      [
+    this.db
+      .prepare(
+        `INSERT INTO part_versions (id, part_id, version_number, lines, rhyme_scheme, is_active, created_at, updated_at)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?)`
+      )
+      .run(
         id,
         input.partId,
         nextVersionNumber,
@@ -146,11 +135,8 @@ export class PartVersionService {
         input.rhymeScheme ?? null,
         isFirst ? 1 : 0,
         now,
-        now,
-      ]
-    );
-
-    saveDatabase(this.db);
+        now
+      );
 
     return this.getVersionById(id)!;
   }
@@ -169,19 +155,19 @@ export class PartVersionService {
     const existing = this.getVersionsByPart(source.partId);
     const nextVersionNumber = Math.max(...existing.map((v) => v.versionNumber)) + 1;
 
-    // Deactivate the current active row first -- the partial unique index on is_active=1
-    // would reject inserting a second active row otherwise.
-    this.db.run(`UPDATE part_versions SET is_active = 0, updated_at = ? WHERE part_id = ? AND is_active = 1`, [
-      now,
-      source.partId,
-    ]);
-    this.db.run(
-      `INSERT INTO part_versions (id, part_id, version_number, lines, rhyme_scheme, is_active, created_at, updated_at)
-       VALUES (?, ?, ?, ?, ?, 1, ?, ?)`,
-      [id, source.partId, nextVersionNumber, JSON.stringify(source.lines), source.rhymeScheme, now, now]
-    );
-
-    saveDatabase(this.db);
+    transaction(this.db, () => {
+      // Deactivate the current active row first -- the partial unique index on is_active=1
+      // would reject inserting a second active row otherwise.
+      this.db
+        .prepare(`UPDATE part_versions SET is_active = 0, updated_at = ? WHERE part_id = ? AND is_active = 1`)
+        .run(now, source.partId);
+      this.db
+        .prepare(
+          `INSERT INTO part_versions (id, part_id, version_number, lines, rhyme_scheme, is_active, created_at, updated_at)
+       VALUES (?, ?, ?, ?, ?, 1, ?, ?)`
+        )
+        .run(id, source.partId, nextVersionNumber, JSON.stringify(source.lines), source.rhymeScheme ?? null, now, now);
+    });
 
     return this.getVersionById(id)!;
   }
@@ -193,12 +179,11 @@ export class PartVersionService {
     }
 
     const now = new Date().toISOString();
-    this.db.run(`UPDATE part_versions SET lines = ?, updated_at = ? WHERE id = ?`, [
+    this.db.prepare(`UPDATE part_versions SET lines = ?, updated_at = ? WHERE id = ?`).run(
       JSON.stringify(lines),
       now,
-      id,
-    ]);
-    saveDatabase(this.db);
+      id
+    );
 
     return this.getVersionById(id)!;
   }
@@ -210,12 +195,11 @@ export class PartVersionService {
     }
 
     const now = new Date().toISOString();
-    this.db.run(`UPDATE part_versions SET rhyme_scheme = ?, updated_at = ? WHERE id = ?`, [
-      rhymeScheme,
+    this.db.prepare(`UPDATE part_versions SET rhyme_scheme = ?, updated_at = ? WHERE id = ?`).run(
+      rhymeScheme ?? null,
       now,
-      id,
-    ]);
-    saveDatabase(this.db);
+      id
+    );
 
     return this.getVersionById(id)!;
   }
@@ -230,15 +214,15 @@ export class PartVersionService {
       throw new Error('Cannot delete a part\'s only version');
     }
 
-    this.db.run(`DELETE FROM part_versions WHERE id = ?`, [id]);
+    transaction(this.db, () => {
+      this.db.prepare(`DELETE FROM part_versions WHERE id = ?`).run(id);
 
-    if (existing.isActive) {
-      const remaining = siblings.filter((v) => v.id !== id);
-      const mostRecent = remaining.reduce((a, b) => (b.versionNumber > a.versionNumber ? b : a));
-      const now = new Date().toISOString();
-      this.db.run(`UPDATE part_versions SET is_active = 1, updated_at = ? WHERE id = ?`, [now, mostRecent.id]);
-    }
-
-    saveDatabase(this.db);
+      if (existing.isActive) {
+        const remaining = siblings.filter((v) => v.id !== id);
+        const mostRecent = remaining.reduce((a, b) => (b.versionNumber > a.versionNumber ? b : a));
+        const now = new Date().toISOString();
+        this.db.prepare(`UPDATE part_versions SET is_active = 1, updated_at = ? WHERE id = ?`).run(now, mostRecent.id);
+      }
+    });
   }
 }

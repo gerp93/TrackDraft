@@ -1,34 +1,57 @@
-import initSqlJs, { Database } from 'sql.js';
+import { DatabaseSync } from 'node:sqlite';
 import * as path from 'path';
 import * as fs from 'fs';
-import { getEffectiveDbPath } from '../dbLocation';
+import {
+  NODE_SQLITE_USER_VERSION,
+  prepareSqlJsMigration,
+  verifySqlJsMigration,
+} from './sqlJsMigration';
 
-let dbInstance: Database | null = null;
-let currentDbPath: string | null = null;
+let dbInstance: DatabaseSync | null = null;
 
-export async function initDatabase(dbPath?: string): Promise<Database> {
-  const SQL = await initSqlJs();
-  dbPath = dbPath ?? getEffectiveDbPath();
+/**
+ * Opens (creating if needed) the database at dbPath and brings its schema up to date.
+ * Changes are written in place as they happen (WAL journal) -- there is no save step.
+ * A database last written by the old sql.js engine is backed up, checked and carried over
+ * first; see sqlJsMigration.ts. Throws, leaving the file untouched or rolled back, if
+ * anything about that fails.
+ */
+export function initDatabase(dbPath: string): DatabaseSync {
   fs.mkdirSync(path.dirname(dbPath), { recursive: true });
 
-  let db: Database;
+  const plan = prepareSqlJsMigration(dbPath);
 
-  if (fs.existsSync(dbPath)) {
-    const buffer = fs.readFileSync(dbPath);
-    db = new SQL.Database(buffer);
-  } else {
-    db = new SQL.Database();
+  const db = new DatabaseSync(dbPath);
+  try {
+    db.exec('PRAGMA journal_mode = WAL');
+    // Enforced for real now (sql.js's build never did): deleting a parent cascades to its
+    // children, and inserting a child with a missing parent is refused.
+    db.exec('PRAGMA foreign_keys = ON');
+    db.exec('PRAGMA busy_timeout = 5000');
+
+    // All schema steps, the migration's row-count check and the user_version marker commit
+    // together -- if any of it fails the database is left exactly as it was.
+    transaction(db, () => {
+      applySchema(db);
+      verifySqlJsMigration(db, plan);
+      db.exec(`PRAGMA user_version = ${NODE_SQLITE_USER_VERSION}`);
+    });
+  } catch (err) {
+    try {
+      db.close();
+    } catch {
+      // already closed
+    }
+    throw err;
   }
 
   dbInstance = db;
-  currentDbPath = dbPath;
+  console.log('Database initialized at:', dbPath);
+  return db;
+}
 
-  // Harmless to set, but sql.js's bundled SQLite build doesn't actually enforce this --
-  // PRAGMA foreign_keys reads back as 0 regardless -- so ON DELETE CASCADE never fires.
-  // Every service that deletes a row with dependents cleans them up explicitly instead.
-  db.run('PRAGMA foreign_keys = ON');
-
-  db.run(`
+function applySchema(db: DatabaseSync): void {
+  db.exec(`
     CREATE TABLE IF NOT EXISTS songs (
       id TEXT PRIMARY KEY,
       title TEXT NOT NULL,
@@ -40,7 +63,7 @@ export async function initDatabase(dbPath?: string): Promise<Database> {
   // "parts" are content records (versioned lyric text); a song's visible arrangement is
   // the separate part_placements table below, so the same part can appear more than once
   // (a repeated chorus) without duplicating its content.
-  db.run(`
+  db.exec(`
     CREATE TABLE IF NOT EXISTS parts (
       id TEXT PRIMARY KEY,
       song_id TEXT NOT NULL,
@@ -54,71 +77,26 @@ export async function initDatabase(dbPath?: string): Promise<Database> {
   `);
 
   // Migration: parts created before the no-lyrics (instrumental section) flag existed.
-  try {
-    db.run(`ALTER TABLE parts ADD COLUMN no_lyrics INTEGER NOT NULL DEFAULT 0`);
-  } catch (e) {
-    // already exists
-  }
-
+  addColumnIfMissing(db, 'parts', `no_lyrics INTEGER NOT NULL DEFAULT 0`);
   // Migration: parts created before per-section audio direction existed.
-  try {
-    db.run(`ALTER TABLE parts ADD COLUMN direction TEXT NOT NULL DEFAULT ''`);
-  } catch (e) {
-    // already exists
-  }
+  addColumnIfMissing(db, 'parts', `direction TEXT NOT NULL DEFAULT ''`);
 
   // Migration: songs created before the style notes / notes fields existed.
-  try {
-    db.run(`ALTER TABLE songs ADD COLUMN style_notes TEXT NOT NULL DEFAULT ''`);
-  } catch (e) {
-    // already exists
-  }
+  addColumnIfMissing(db, 'songs', `style_notes TEXT NOT NULL DEFAULT ''`);
   // Migration: songs created before the singing-voice choice existed.
-  try {
-    db.run(`ALTER TABLE songs ADD COLUMN vocal_gender TEXT NOT NULL DEFAULT ''`);
-  } catch (e) {
-    // already exists
-  }
-  try {
-    db.run(`ALTER TABLE songs ADD COLUMN notes TEXT NOT NULL DEFAULT ''`);
-  } catch (e) {
-    // already exists
-  }
+  addColumnIfMissing(db, 'songs', `vocal_gender TEXT NOT NULL DEFAULT ''`);
+  addColumnIfMissing(db, 'songs', `notes TEXT NOT NULL DEFAULT ''`);
   // Migration: songs created before the privacy-screen (hide from song list) flag existed.
-  try {
-    db.run(`ALTER TABLE songs ADD COLUMN is_hidden INTEGER NOT NULL DEFAULT 0`);
-  } catch (e) {
-    // already exists
-  }
+  addColumnIfMissing(db, 'songs', `is_hidden INTEGER NOT NULL DEFAULT 0`);
   // Migration: songs created before the generation inputs (tempo, key, time signature,
   // reference track) existed. NULL / '' mean "let the music model decide".
-  try {
-    db.run(`ALTER TABLE songs ADD COLUMN bpm INTEGER`);
-  } catch (e) {
-    // already exists
-  }
-  try {
-    db.run(`ALTER TABLE songs ADD COLUMN key_scale TEXT NOT NULL DEFAULT ''`);
-  } catch (e) {
-    // already exists
-  }
-  try {
-    db.run(`ALTER TABLE songs ADD COLUMN time_signature TEXT NOT NULL DEFAULT ''`);
-  } catch (e) {
-    // already exists
-  }
-  try {
-    db.run(`ALTER TABLE songs ADD COLUMN reference_audio_path TEXT NOT NULL DEFAULT ''`);
-  } catch (e) {
-    // already exists
-  }
-  try {
-    db.run(`ALTER TABLE songs ADD COLUMN cover_strength REAL`);
-  } catch (e) {
-    // already exists
-  }
+  addColumnIfMissing(db, 'songs', `bpm INTEGER`);
+  addColumnIfMissing(db, 'songs', `key_scale TEXT NOT NULL DEFAULT ''`);
+  addColumnIfMissing(db, 'songs', `time_signature TEXT NOT NULL DEFAULT ''`);
+  addColumnIfMissing(db, 'songs', `reference_audio_path TEXT NOT NULL DEFAULT ''`);
+  addColumnIfMissing(db, 'songs', `cover_strength REAL`);
 
-  db.run(`
+  db.exec(`
     CREATE TABLE IF NOT EXISTS part_placements (
       id TEXT PRIMARY KEY,
       song_id TEXT NOT NULL,
@@ -135,7 +113,7 @@ export async function initDatabase(dbPath?: string): Promise<Database> {
   // that shape just needs resetting (Settings -> Database Location -> Reset to Default, or
   // delete the .db file) rather than an in-place migration.
 
-  db.run(`
+  db.exec(`
     CREATE TABLE IF NOT EXISTS part_versions (
       id TEXT PRIMARY KEY,
       part_id TEXT NOT NULL,
@@ -151,14 +129,14 @@ export async function initDatabase(dbPath?: string): Promise<Database> {
   `);
 
   // Enforces "one active version per part" at the DB level, not just in service code.
-  db.run(`
+  db.exec(`
     CREATE UNIQUE INDEX IF NOT EXISTS idx_one_active_per_part
       ON part_versions(part_id) WHERE is_active = 1
   `);
 
   // Generated audio renditions of a song. Only metadata lives here -- the audio file is
   // in this device's app-data folder (see ai/takeStorage.ts), keyed by file_name.
-  db.run(`
+  db.exec(`
     CREATE TABLE IF NOT EXISTS song_takes (
       id TEXT PRIMARY KEY,
       song_id TEXT NOT NULL,
@@ -171,10 +149,10 @@ export async function initDatabase(dbPath?: string): Promise<Database> {
       FOREIGN KEY (song_id) REFERENCES songs(id) ON DELETE CASCADE
     )
   `);
-  db.run(`CREATE INDEX IF NOT EXISTS idx_song_takes_song ON song_takes(song_id)`);
+  db.exec(`CREATE INDEX IF NOT EXISTS idx_song_takes_song ON song_takes(song_id)`);
 
   // Named "Sound" descriptions (style notes + voice) that can be reapplied to any song.
-  db.run(`
+  db.exec(`
     CREATE TABLE IF NOT EXISTS sound_presets (
       id TEXT PRIMARY KEY,
       name TEXT NOT NULL,
@@ -185,45 +163,79 @@ export async function initDatabase(dbPath?: string): Promise<Database> {
   `);
 
   // Migration: takes created before the model's seed was recorded.
-  try {
-    db.run(`ALTER TABLE song_takes ADD COLUMN seed TEXT`);
-  } catch (e) {
-    // already exists
-  }
+  addColumnIfMissing(db, 'song_takes', `seed TEXT`);
 
   // Migration: take management (star, rename, notes).
-  for (const column of [
-    `favorite INTEGER NOT NULL DEFAULT 0`,
-    `name TEXT`,
-    `notes TEXT NOT NULL DEFAULT ''`,
-  ]) {
+  addColumnIfMissing(db, 'song_takes', `favorite INTEGER NOT NULL DEFAULT 0`);
+  addColumnIfMissing(db, 'song_takes', `name TEXT`);
+  addColumnIfMissing(db, 'song_takes', `notes TEXT NOT NULL DEFAULT ''`);
+
+  db.exec(`CREATE INDEX IF NOT EXISTS idx_parts_song ON parts(song_id)`);
+  db.exec(`CREATE INDEX IF NOT EXISTS idx_part_versions_part ON part_versions(part_id)`);
+  db.exec(`CREATE INDEX IF NOT EXISTS idx_placements_song ON part_placements(song_id)`);
+  db.exec(`CREATE INDEX IF NOT EXISTS idx_placements_part ON part_placements(part_id)`);
+}
+
+/** ALTER TABLE ... ADD COLUMN errors if the column exists, so check first. columnDef is the
+ * full definition ("name TYPE ..."); its first word is the column name. */
+function addColumnIfMissing(db: DatabaseSync, table: string, columnDef: string): void {
+  const name = columnDef.trim().split(/\s+/)[0];
+  const columns = db.prepare(`PRAGMA table_info(${table})`).all() as unknown as { name: string }[];
+  if (columns.some((c) => c.name === name)) return;
+  db.exec(`ALTER TABLE ${table} ADD COLUMN ${columnDef}`);
+}
+
+const transactionDepth = new WeakMap<DatabaseSync, number>();
+
+/** Runs fn as one all-or-nothing write. Re-entrant: a call inside another transaction just
+ * joins it (some read paths write, e.g. PartVersionService.getVersionsByPart's self-heal),
+ * so only the outermost call begins, commits or rolls back. */
+export function transaction<T>(db: DatabaseSync, fn: () => T): T {
+  const depth = transactionDepth.get(db) ?? 0;
+  if (depth > 0) {
+    transactionDepth.set(db, depth + 1);
     try {
-      db.run(`ALTER TABLE song_takes ADD COLUMN ${column}`);
-    } catch (e) {
-      // already exists
+      return fn();
+    } finally {
+      transactionDepth.set(db, depth);
     }
   }
 
-  db.run(`CREATE INDEX IF NOT EXISTS idx_parts_song ON parts(song_id)`);
-  db.run(`CREATE INDEX IF NOT EXISTS idx_part_versions_part ON part_versions(part_id)`);
-  db.run(`CREATE INDEX IF NOT EXISTS idx_placements_song ON part_placements(song_id)`);
-  db.run(`CREATE INDEX IF NOT EXISTS idx_placements_part ON part_placements(part_id)`);
-
-  saveDatabase(db, dbPath);
-
-  console.log('Database initialized at:', dbPath);
-
-  return db;
-}
-
-export function saveDatabase(db: Database, dbPath?: string): void {
-  if (!dbPath) {
-    dbPath = currentDbPath ?? getEffectiveDbPath();
+  db.exec('BEGIN');
+  transactionDepth.set(db, 1);
+  try {
+    const result = fn();
+    db.exec('COMMIT');
+    return result;
+  } catch (err) {
+    try {
+      db.exec('ROLLBACK');
+    } catch {
+      // the failure may already have ended the transaction
+    }
+    throw err;
+  } finally {
+    transactionDepth.set(db, 0);
   }
-  const data = db.export();
-  fs.writeFileSync(dbPath, Buffer.from(data));
 }
 
-export function getDatabase(): Database | null {
+export function getDatabase(): DatabaseSync | null {
   return dbInstance;
+}
+
+/** Folds the WAL back into the main file and closes. Must run before anything copies the
+ * database file (recent commits live in the -wal sidecar until then) and when the app quits. */
+export function closeDatabase(db: DatabaseSync | null = dbInstance): void {
+  if (!db) return;
+  try {
+    db.exec('PRAGMA wal_checkpoint(TRUNCATE)');
+  } catch (err) {
+    console.error('wal_checkpoint failed before close:', err);
+  }
+  try {
+    db.close();
+  } catch {
+    // already closed
+  }
+  if (db === dbInstance) dbInstance = null;
 }

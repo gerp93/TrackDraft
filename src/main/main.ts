@@ -2,7 +2,8 @@ import { app, BrowserWindow, ipcMain, dialog, shell } from 'electron';
 import { autoUpdater } from 'electron-updater';
 import * as path from 'path';
 import * as fs from 'fs';
-import { initDatabase, saveDatabase } from './database/schema';
+import { initDatabase, closeDatabase } from './database/schema';
+import { sqlJsBackupPath } from './database/sqlJsMigration';
 import {
   pinUserDataPath,
   getConfiguredDbPath,
@@ -26,7 +27,7 @@ import { CreatePlacementInput } from '../shared/types/partPlacement';
 import { CreatePartVersionInput } from '../shared/types/partVersion';
 import { AiSettings } from '../shared/types/ai';
 import { GenerateSongOptions } from '../shared/types/songTake';
-import { Database } from 'sql.js';
+import { DatabaseSync } from 'node:sqlite';
 import {
   clearClaudeApiKey,
   getAiSettings,
@@ -65,8 +66,8 @@ pinUserDataPath();
 app.setName('trackdraft');
 
 // Guards against a real race: if a second launch attempt's 'second-instance'
-// event lands while this process is still awaiting initDatabase() (loading
-// the sql.js WASM engine takes a moment), the handler below would see
+// event lands while this process is still starting up (opening, and on the
+// first launch after an update migrating, the database takes a moment), the handler below would see
 // mainWindow as still null and create a *second* window ahead of the real
 // startup flow -- one whose renderer calls the API before
 // registerIPCHandlers() has run, permanently stuck showing "No handler
@@ -95,7 +96,7 @@ if (!gotLock) {
 }
 
 let mainWindow: BrowserWindow | null = null;
-let db: Database | null = null;
+let db: DatabaseSync | null = null;
 let songService: SongService;
 let partService: PartService;
 let partPlacementService: PartPlacementService;
@@ -235,7 +236,29 @@ app.whenReady().then(async () => {
     return;
   }
 
-  db = await initDatabase();
+  const dbPath = getEffectiveDbPath();
+  try {
+    db = initDatabase(dbPath);
+  } catch (err) {
+    // Never fall through to an empty database: that would look like all songs were lost, and
+    // the next save would bury the real file's problem. The original is left as it was.
+    const backupPath = sqlJsBackupPath(dbPath);
+    const backupNote = fs.existsSync(backupPath)
+      ? `\n\nA backup copy made before the update is at:\n${backupPath}`
+      : '';
+    dialog.showMessageBoxSync({
+      type: 'error',
+      title: 'Database could not be updated',
+      message: "TrackDraft couldn't update your database, so it will close without changing anything.",
+      detail:
+        `Your original file is untouched at:\n${dbPath}${backupNote}\n\n` +
+        `Details: ${err instanceof Error ? err.message : String(err)}`,
+      buttons: ['Quit'],
+      defaultId: 0,
+    });
+    app.exit(1);
+    return;
+  }
   songService = new SongService(db);
   partService = new PartService(db);
   partPlacementService = new PartPlacementService(db);
@@ -260,12 +283,12 @@ app.whenReady().then(async () => {
 // A server this app started holds several GB of VRAM; don't leave it behind.
 app.on('will-quit', () => {
   stopAceStepServer();
+  // Folds the WAL into the main file so the .db on its own is complete.
+  closeDatabase();
+  db = null;
 });
 
 app.on('window-all-closed', () => {
-  if (db) {
-    saveDatabase(db);
-  }
   if (process.platform !== 'darwin') {
     app.quit();
   }
@@ -278,7 +301,7 @@ function registerIPCHandlers() {
   ipcMain.handle('songs:create', (_, input: CreateSongInput) => songService.createSong(input));
   ipcMain.handle('songs:update', (_, id: string, input: UpdateSongInput) => songService.updateSong(id, input));
   ipcMain.handle('songs:import', (_, input: ImportSongInput) =>
-    importSong({ songService, partService, partPlacementService, partVersionService }, input)
+    importSong({ db: db!, songService, partService, partPlacementService, partVersionService }, input)
   );
   ipcMain.handle('songs:setHidden', (_, id: string, hidden: boolean) => songService.setSongHidden(id, hidden));
   ipcMain.handle('songs:delete', (_, id: string) => {
@@ -388,9 +411,10 @@ function registerIPCHandlers() {
   });
 
   ipcMain.handle('dbLocation:set', (_, newPath: string) => {
-    if (db) {
-      saveDatabase(db);
-    }
+    // Checkpoint and close first: recent commits sit in the -wal sidecar, and setDbPath
+    // copies only the main file.
+    closeDatabase();
+    db = null;
     setDbPath(newPath);
     app.relaunch();
     app.exit();
@@ -398,9 +422,8 @@ function registerIPCHandlers() {
   });
 
   ipcMain.handle('dbLocation:resetToDefault', () => {
-    if (db) {
-      saveDatabase(db);
-    }
+    closeDatabase();
+    db = null;
     resetToDefaultDbPath();
     app.relaunch();
     app.exit();

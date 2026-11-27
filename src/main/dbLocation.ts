@@ -7,11 +7,12 @@ interface AppConfig {
 }
 
 // A local dev run (npm run dev) and a packaged/installed build must never
-// share a userData folder. The database layer (sql.js) keeps the whole file
-// in memory and overwrites it wholesale on every save, so if both were ever
-// open against the same file, whichever saved last would silently wipe out
-// the other's data. Call this before anything else touches
-// app.getPath('userData') (must run before Electron's 'ready' event).
+// share a userData folder. Both would open the same SQLite file (WAL mode
+// tolerates concurrent connections, but two app versions with different schemas
+// writing to one database, or one running the one-time sql.js migration while the
+// other has it open, is exactly the mix-up this prevents). Call this before
+// anything else touches app.getPath('userData') (must run before Electron's
+// 'ready' event).
 export function pinUserDataPath(): void {
   const dirName = app.isPackaged ? 'trackdraft' : 'trackdraft-dev';
   app.setPath('userData', path.join(app.getPath('appData'), dirName));
@@ -59,6 +60,8 @@ export function isUsingDefaultLocation(): boolean {
 /**
  * Point the app at a different SQLite file. If nothing exists yet at the new
  * location, the current database is copied there first so no data is lost.
+ * The caller must closeDatabase() first: the copy takes only the main file, and
+ * recent commits live in the -wal sidecar until the database is checkpointed.
  * If a file already exists there, it's left alone and simply adopted as-is.
  */
 export function setDbPath(newPath: string): void {

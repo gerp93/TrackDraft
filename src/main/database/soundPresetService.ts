@@ -1,8 +1,7 @@
-import { Database } from 'sql.js';
+import { DatabaseSync } from 'node:sqlite';
 import { v4 as uuidv4 } from 'uuid';
 import { CreateSoundPresetInput, SoundPreset } from '../../shared/types/soundPreset';
 import { VocalGender } from '../../shared/types/song';
-import { saveDatabase } from './schema';
 
 const SELECT_COLUMNS = `
   id,
@@ -12,11 +11,7 @@ const SELECT_COLUMNS = `
   created_at as createdAt
 `;
 
-function rowToPreset(columns: string[], row: any[]): SoundPreset {
-  const obj: any = {};
-  columns.forEach((col, idx) => {
-    obj[col] = row[idx];
-  });
+function rowToPreset(obj: Record<string, any>): SoundPreset {
   return {
     id: obj.id,
     name: obj.name,
@@ -27,55 +22,40 @@ function rowToPreset(columns: string[], row: any[]): SoundPreset {
 }
 
 export class SoundPresetService {
-  constructor(private db: Database) {}
+  constructor(private db: DatabaseSync) {}
 
   getAll(): SoundPreset[] {
-    const stmt = this.db.prepare(`SELECT ${SELECT_COLUMNS} FROM sound_presets ORDER BY name COLLATE NOCASE`);
-    const presets: SoundPreset[] = [];
-    while (stmt.step()) presets.push(rowToPreset(stmt.getColumnNames(), stmt.get()));
-    stmt.free();
-    return presets;
+    const rows = this.db.prepare(`SELECT ${SELECT_COLUMNS} FROM sound_presets ORDER BY name COLLATE NOCASE`).all();
+    return rows.map((row) => rowToPreset(row));
   }
 
   getById(id: string): SoundPreset | null {
-    const stmt = this.db.prepare(`SELECT ${SELECT_COLUMNS} FROM sound_presets WHERE id = ?`);
-    stmt.bind([id]);
-    const preset = stmt.step() ? rowToPreset(stmt.getColumnNames(), stmt.get()) : null;
-    stmt.free();
-    return preset;
+    const row = this.db.prepare(`SELECT ${SELECT_COLUMNS} FROM sound_presets WHERE id = ?`).get(id);
+    return row ? rowToPreset(row) : null;
   }
 
   /** Saves a preset; if one with the same name (case-insensitive) exists, its contents are replaced. */
   create(input: CreateSoundPresetInput): SoundPreset {
     const name = input.name.trim();
-    const stmt = this.db.prepare(`SELECT id FROM sound_presets WHERE name = ? COLLATE NOCASE`);
-    stmt.bind([name]);
-    const existingId = stmt.step() ? (stmt.get()[0] as string) : null;
-    stmt.free();
+    const existing = this.db.prepare(`SELECT id FROM sound_presets WHERE name = ? COLLATE NOCASE`).get(name);
+    const existingId = existing ? (existing.id as string) : null;
 
     if (existingId) {
-      this.db.run(`UPDATE sound_presets SET name = ?, style_notes = ?, vocal_gender = ? WHERE id = ?`, [
-        name,
-        input.styleNotes,
-        input.vocalGender,
-        existingId,
-      ]);
-      saveDatabase(this.db);
+      this.db
+        .prepare(`UPDATE sound_presets SET name = ?, style_notes = ?, vocal_gender = ? WHERE id = ?`)
+        .run(name, input.styleNotes ?? '', input.vocalGender ?? '', existingId);
       return this.getById(existingId)!;
     }
 
     const id = uuidv4();
     const now = new Date().toISOString();
-    this.db.run(
-      `INSERT INTO sound_presets (id, name, style_notes, vocal_gender, created_at) VALUES (?, ?, ?, ?, ?)`,
-      [id, name, input.styleNotes, input.vocalGender, now]
-    );
-    saveDatabase(this.db);
+    this.db
+      .prepare(`INSERT INTO sound_presets (id, name, style_notes, vocal_gender, created_at) VALUES (?, ?, ?, ?, ?)`)
+      .run(id, name, input.styleNotes ?? '', input.vocalGender ?? '', now);
     return this.getById(id)!;
   }
 
   delete(id: string): void {
-    this.db.run(`DELETE FROM sound_presets WHERE id = ?`, [id]);
-    saveDatabase(this.db);
+    this.db.prepare(`DELETE FROM sound_presets WHERE id = ?`).run(id);
   }
 }
